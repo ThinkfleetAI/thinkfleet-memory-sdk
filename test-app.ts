@@ -181,10 +181,10 @@ async function run(): Promise<void> {
 
   await test('lattice.getMonitorStatus() returns a status object', async () => {
     const status = await tf.lattice.getMonitorStatus()
-    if (typeof status.patternsDueSoon !== 'number') {
+    if (typeof status.patternsDue !== 'number' || typeof status.activePatternCount !== 'number') {
       throw new Error(`unexpected shape: ${JSON.stringify(status)}`)
     }
-    console.log(`      lastTick=${status.lastTickAt ?? 'never'} due=${status.patternsDueSoon}`)
+    console.log(`      lastTick=${status.lastTickAt ?? 'never'} due=${status.patternsDue} active=${status.activePatternCount}`)
   })
 
   // ── Summary ───────────────────────────────────────────────────────

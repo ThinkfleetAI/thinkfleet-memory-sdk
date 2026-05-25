@@ -183,6 +183,12 @@ export interface MonitorTickResult {
 }
 
 export interface MonitorStatus {
+  /** ISO timestamp of the last monitor tick, or null if it has never run. */
   lastTickAt: string | null
-  patternsDueSoon: number
+  /** Duration of the last tick in ms, or null if never run. */
+  lastTickDurationMs: number | null
+  /** Patterns whose `nextExpectedAt` falls inside the next monitor window. */
+  patternsDue: number
+  /** Total active patterns the monitor is watching. */
+  activePatternCount: number
 }
