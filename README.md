@@ -122,16 +122,14 @@ const tf = new ThinkFleetMemory({
 
 ### `tf.lattice` — behavioral patterns
 
-| Method                            | Endpoint                                          |
-| --------------------------------- | ------------------------------------------------- |
-| `extractPatterns(body?)`          | `POST /projects/:id/lattice/patterns/extract`     |
-| `runMonitorTick()`                | `POST /projects/:id/lattice/monitor/tick`         |
-| `listContacts(params?)`           | `GET  /projects/:id/lattice/contacts`             |
-| `listPatterns(contactId, params?)`| `GET  /projects/:id/lattice/contacts/:cid/patterns`|
-| `getContext(contactId, params?)`  | `GET  /projects/:id/lattice/contacts/:cid/context`|
-| `search(params)`                  | `GET  /projects/:id/lattice/search`               |
-| `observe(body)`                   | `POST /projects/:id/lattice/activity`             |
-| `runDemoSeed(body?)` (dev/QA only)| `POST /projects/:id/lattice/demo/seed`            |
+| Method                              | Endpoint                                              |
+| ----------------------------------- | ----------------------------------------------------- |
+| `extractPatterns(body?)`            | `POST /projects/:id/lattice/patterns/extract`         |
+| `getPattern(patternId)`             | `GET  /projects/:id/lattice/patterns/:patternId`      |
+| `listPatterns(contactId, params?)`  | `GET  /projects/:id/lattice/contacts/:cid/patterns`   |
+| `getContext(contactId, params?)`    | `GET  /projects/:id/lattice/contacts/:cid/context`    |
+| `runMonitorTick()`                  | `POST /projects/:id/lattice/monitor/tick`             |
+| `getMonitorStatus()`                | `GET  /projects/:id/lattice/monitor/status`           |
 
 ---
 
