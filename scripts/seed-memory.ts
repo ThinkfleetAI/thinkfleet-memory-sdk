@@ -229,7 +229,7 @@ async function main(): Promise<void> {
         scope: item.scope,
         importance: item.importance,
         category: SEED_CATEGORY,
-        source: 'sdk-seed',
+        source: 'admin_created',
       })
       created++
       process.stdout.write('.')
