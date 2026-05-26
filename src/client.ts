@@ -1,6 +1,7 @@
 import { HttpClient } from './core/http-client.js'
 import type { RequestInterceptor, ResponseInterceptor } from './core/types.js'
 import { AlertsResource } from './resources/alerts.js'
+import { ComplianceResource } from './resources/compliance.js'
 import { ContextResource } from './resources/context.js'
 import { EventsResource } from './resources/events.js'
 import { LatticeResource } from './resources/lattice.js'
@@ -52,6 +53,7 @@ export class ThinkFleetMemory {
   readonly context: ContextResource
   readonly events: EventsResource
   readonly alerts: AlertsResource
+  readonly compliance: ComplianceResource
 
   constructor(options: ThinkFleetMemoryOptions) {
     if (!options.apiKey) {
@@ -77,5 +79,6 @@ export class ThinkFleetMemory {
     this.context = new ContextResource(http)
     this.events = new EventsResource(http)
     this.alerts = new AlertsResource(http)
+    this.compliance = new ComplianceResource(http)
   }
 }

@@ -42,6 +42,14 @@ export type {
   PollEventsParams,
 } from './resources/events.js'
 
+export { ComplianceResource } from './resources/compliance.js'
+export type {
+  ComplianceSubject,
+  ExportSubjectResponse,
+  HardDeleteSubjectRequest,
+  HardDeleteSubjectResponse,
+} from './resources/compliance.js'
+
 export { AlertsResource } from './resources/alerts.js'
 export type {
   AlertTrigger,
