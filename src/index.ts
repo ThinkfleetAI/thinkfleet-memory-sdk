@@ -23,6 +23,36 @@ export type {
 // Resources
 export { MemoryResource, AdminMemoryResource } from './resources/memory.js'
 export { ConsentResource } from './resources/consent.js'
+export { ContextResource } from './resources/context.js'
+export type {
+  ContextSection,
+  ContextBuildRequest,
+  ContextBundle,
+  ContextProfile,
+  ContextPattern,
+  ContextPrediction,
+  ContextMemory,
+  ContextObservation,
+} from './resources/context.js'
+
+export { EventsResource } from './resources/events.js'
+export type {
+  EventSeverity,
+  MemoryEvent,
+  PollEventsParams,
+} from './resources/events.js'
+
+export { AlertsResource } from './resources/alerts.js'
+export type {
+  AlertTrigger,
+  AlertFilter,
+  NotificationChannel,
+  ThrottleConfig,
+  AlertRule,
+  CreateAlertRuleRequest,
+  UpdateAlertRuleRequest,
+  AlertFire,
+} from './resources/alerts.js'
 export type {
   ConsentSubject,
   OptOutRequest,

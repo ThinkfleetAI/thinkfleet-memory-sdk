@@ -345,6 +345,94 @@ async function run(): Promise<void> {
     if (status.memoryId) await tf.memory.admin.delete(status.memoryId)
   })
 
+  // ── Context Builder ────────────────────────────────────────────────
+  section('tf.context.build() — unified LLM context')
+
+  await test('context.build() returns a token-budgeted bundle', async () => {
+    const ctx = await tf.context.build({
+      subject: { kind: 'workspace', externalId: `ctx-${stamp}` },
+      maxTokens: 1500,
+    })
+    if (!ctx.provenance) throw new Error('missing provenance')
+    if (typeof ctx.tokensEstimate !== 'number') throw new Error('missing tokensEstimate')
+    if (!Array.isArray(ctx.truncated)) throw new Error('missing truncated array')
+    console.log(`      tokens=${ctx.tokensEstimate} truncated=[${ctx.truncated.join(',')}]`)
+  })
+
+  await test('context.build({ include }) honors section filter', async () => {
+    const ctx = await tf.context.build({
+      subject: { kind: 'workspace', externalId: `ctx-${stamp}` },
+      include: ['profile', 'predictions'],
+    })
+    // patterns/memories/observations should be empty arrays
+    if (ctx.patterns.length !== 0) throw new Error('patterns should be empty when not included')
+    if (ctx.memories.length !== 0) throw new Error('memories should be empty when not included')
+    if (ctx.observations.length !== 0) throw new Error('observations should be empty when not included')
+  })
+
+  // ── Engine events (Phase 3i) ───────────────────────────────────────
+  section('tf.events.poll() — memory event log')
+
+  await test('events.poll() returns an array', async () => {
+    const events = await tf.events.poll({ limit: 10 })
+    if (!Array.isArray(events)) throw new Error(`expected array, got ${typeof events}`)
+    console.log(`      ${events.length} recent events`)
+  })
+
+  await test('events.poll({ eventTypes }) filters', async () => {
+    const events = await tf.events.poll({ eventTypes: ['pattern.emerged'], limit: 5 })
+    if (!Array.isArray(events)) throw new Error(`expected array`)
+    const offType = events.filter((e) => e.eventType !== 'pattern.emerged')
+    if (offType.length > 0) throw new Error(`got ${offType.length} events of wrong type`)
+  })
+
+  // ── User alert rules (Phase 3j) ────────────────────────────────────
+  section('tf.alerts.* — user-defined alert rules')
+
+  let createdAlertId: string | null = null
+  await test('alerts.create() persists a rule', async () => {
+    const rule = await tf.alerts.create({
+      name: `SDK_SMOKE_ALERT_${stamp}`,
+      trigger: { kind: 'engine-event', eventTypes: ['risk.fired'] },
+      filter: { subjectKind: 'contact' },
+      notify: [{
+        kind: 'memory',
+        writeAs: { content: 'Smoke-test risk fired for {{subject.kind}}/{{subject.externalId}}' },
+      }],
+      throttle: { cooldownMinutes: 5, dedupOn: 'subject+rule' },
+    })
+    if (!rule.id) throw new Error('rule has no id')
+    if (rule.enabled !== true) throw new Error('rule should be enabled by default')
+    createdAlertId = rule.id
+    console.log(`      created rule id=${rule.id}`)
+  })
+
+  await test('alerts.list() includes the new rule', async () => {
+    const list = await tf.alerts.list()
+    const found = list.find((r) => r.id === createdAlertId)
+    if (!found) throw new Error('newly created rule missing from list()')
+  })
+
+  await test('alerts.disable() flips enabled to false', async () => {
+    if (!createdAlertId) throw new Error('skipped — no rule id')
+    const rule = await tf.alerts.disable(createdAlertId)
+    if (rule.enabled !== false) throw new Error('disable() should set enabled=false')
+  })
+
+  await test('alerts.update() patches name', async () => {
+    if (!createdAlertId) throw new Error('skipped — no rule id')
+    const rule = await tf.alerts.update(createdAlertId, { name: `SDK_SMOKE_ALERT_RENAMED_${stamp}` })
+    if (rule.name !== `SDK_SMOKE_ALERT_RENAMED_${stamp}`) throw new Error('name not updated')
+  })
+
+  await test('alerts.delete() removes the rule', async () => {
+    if (!createdAlertId) throw new Error('skipped — no rule id')
+    await tf.alerts.delete(createdAlertId)
+    const list = await tf.alerts.list()
+    const stillThere = list.find((r) => r.id === createdAlertId)
+    if (stillThere) throw new Error('rule still present after delete')
+  })
+
   // ── Lattice ───────────────────────────────────────────────────────
   section('lattice — reads')
 
