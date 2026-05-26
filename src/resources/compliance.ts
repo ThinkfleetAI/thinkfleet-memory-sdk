@@ -49,6 +49,32 @@ export interface HardDeleteSubjectResponse {
   durationMs: number
 }
 
+export interface ListAuditParams {
+  /** Restrict to events touching this subject. */
+  subject?: ComplianceSubject
+  /** Restrict to a specific actor (user or service key id). */
+  actor?: string
+  /** Event types to include. Empty = all. */
+  eventTypes?: string[]
+  /** ISO-8601 lower bound. Newer events only. */
+  since?: string
+  /** Max events to return. Default 100, max 1000. */
+  limit?: number
+}
+
+export interface AuditEvent {
+  id: string
+  created: string
+  actor: string
+  /** "read.search", "read.context", "read.predict", "read.profile",
+   *  "read.export", "subject.hard_delete", etc. */
+  eventType: string
+  query: string | null
+  memoryIds: string | null
+  resultCount: number
+  metadata: Record<string, unknown>
+}
+
 /**
  * GDPR-grade compliance surface (Phase 3f).
  *
@@ -104,5 +130,36 @@ export class ComplianceResource {
       body,
       options,
     )
+  }
+
+  /**
+   * Read the memory_audit_event log. GDPR Art. 15 "who accessed my
+   * data and when." Pass a subject to narrow to one person's access
+   * log; omit for project-wide audit.
+   *
+   * @example
+   * ```ts
+   * const events = await tf.compliance.listAuditEvents({
+   *   subject: { kind: 'contact', externalId: 'sarah-pizza' },
+   *   eventTypes: ['read.context', 'read.export'],
+   *   since: '2026-05-01T00:00:00Z',
+   * })
+   * ```
+   */
+  async listAuditEvents(
+    params: ListAuditParams = {},
+    options?: RequestOptions,
+  ): Promise<AuditEvent[]> {
+    const query: Record<string, string | number | undefined> = {
+      subjectKind: params.subject?.kind,
+      subjectExternalId: params.subject?.externalId,
+      actor: params.actor,
+      since: params.since,
+      limit: params.limit,
+    }
+    if (params.eventTypes && params.eventTypes.length > 0) {
+      query.eventTypes = params.eventTypes.join(',')
+    }
+    return this.http.get<AuditEvent[]>('/memory-compliance/audit', query, options)
   }
 }

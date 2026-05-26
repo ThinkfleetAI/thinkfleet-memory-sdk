@@ -48,6 +48,8 @@ export type {
   ExportSubjectResponse,
   HardDeleteSubjectRequest,
   HardDeleteSubjectResponse,
+  ListAuditParams,
+  AuditEvent,
 } from './resources/compliance.js'
 
 export { AlertsResource } from './resources/alerts.js'
