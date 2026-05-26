@@ -211,6 +211,45 @@ export interface MonitorTickResult {
   failures: Array<{ patternId: string; error: string }>
 }
 
+// ── Predict ──────────────────────────────────────────────────────
+
+export interface PredictRequest {
+  /** Subject to project predictions for. */
+  subject: Subject
+  /** How far forward to project (in days). Default 30, clamped [1, 365]. */
+  horizonDays?: number
+  /** Max predictions to return. Default 20, max 200. */
+  limit?: number
+  /** Minimum confidence (0..1) to surface. Default 0.5. */
+  minConfidence?: number
+}
+
+/** One projected event derived from one active behavior pattern. */
+export interface PredictedEvent {
+  patternId: string
+  /** e.g. 'recurring_event', 'day_of_week', ... */
+  patternKind: string
+  description: string
+  /** ISO timestamp the event is expected at. */
+  expectedAt: string
+  /** 0..1 confidence inherited from the pattern's dominance score. */
+  confidence: number
+  /** Tolerance window in minutes. */
+  windowMinutes: number
+  /** Provenance — raw memories that produced the source pattern. */
+  sourceMemoryIds: string[]
+}
+
+export interface PredictResult {
+  subject: Subject
+  predictions: PredictedEvent[]
+  /** Total active patterns considered, whether or not each produced a prediction. */
+  activePatternCount: number
+  /** ISO timestamp the prediction was generated. */
+  generatedAt: string
+  durationMs: number
+}
+
 export interface MonitorStatus {
   /** ISO timestamp of the last monitor tick, or null if it has never run. */
   lastTickAt: string | null

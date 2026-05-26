@@ -76,4 +76,7 @@ export type {
   LatticeContextBundle,
   MonitorTickResult,
   MonitorStatus,
+  PredictRequest,
+  PredictedEvent,
+  PredictResult,
 } from './types/lattice.js'

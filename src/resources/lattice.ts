@@ -11,6 +11,8 @@ import type {
   MineMemoriesRequest,
   MonitorStatus,
   MonitorTickResult,
+  PredictRequest,
+  PredictResult,
 } from '../types/lattice.js'
 
 /**
@@ -151,5 +153,29 @@ export class LatticeResource {
    */
   async getMonitorStatus(options?: RequestOptions): Promise<MonitorStatus> {
     return this.http.get<MonitorStatus>('/lattice/monitor/status', undefined, options)
+  }
+
+  /**
+   * Project future events for a subject based on their active
+   * behavior patterns. Each prediction names the pattern that drove
+   * it and the raw memories that produced the pattern (provenance)
+   * so callers can explain or audit any single prediction.
+   *
+   * @example
+   * ```ts
+   * const result = await tf.lattice.predict({
+   *   subject: { kind: 'contact', externalId: 'sarah-pizza' },
+   *   horizonDays: 30,
+   * })
+   * for (const p of result.predictions) {
+   *   console.log(`${p.expectedAt}: ${p.description} (conf ${p.confidence.toFixed(2)})`)
+   * }
+   * ```
+   */
+  async predict(
+    body: PredictRequest,
+    options?: RequestOptions,
+  ): Promise<PredictResult> {
+    return this.http.post<PredictResult>('/lattice/predict', body, options)
   }
 }
