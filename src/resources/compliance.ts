@@ -194,4 +194,71 @@ export class ComplianceResource {
   async listPacks(options?: RequestOptions): Promise<CompliancePack[]> {
     return this.http.get<CompliancePack[]>('/memory-compliance/packs', undefined, options)
   }
+
+  /**
+   * List which compliance packs are enabled (or explicitly disabled)
+   * for the current project. Packs not appearing in the list fall
+   * back to the platform default set (configured at deployment via
+   * `MEMORY_DEFAULT_PACK_IDS`).
+   *
+   * @example
+   * ```ts
+   * const enabled = await tf.compliance.listProjectPacks()
+   * enabled.filter(p => p.enabled).map(p => p.packId)
+   * // => ['@thinkfleet/pack-healthcare']
+   * ```
+   */
+  async listProjectPacks(options?: RequestOptions): Promise<ProjectPackEnablement[]> {
+    return this.http.get<ProjectPackEnablement[]>('/memory-compliance-packs', undefined, options)
+  }
+
+  /**
+   * Enable, disable, or update the config for a compliance pack in
+   * the current project. Idempotent — calling with the same packId
+   * updates the existing row in place, so per-pack config survives
+   * enable/disable cycles. Changes propagate to the Rust engine
+   * within the cache TTL (~30s).
+   *
+   * @example
+   * ```ts
+   * await tf.compliance.upsertProjectPack({
+   *   packId: '@thinkfleet/pack-healthcare',
+   *   enabled: true,
+   *   config: { deidentificationMode: 'safe-harbor' },
+   * })
+   * ```
+   */
+  async upsertProjectPack(
+    body: UpsertProjectPackRequest,
+    options?: RequestOptions,
+  ): Promise<ProjectPackEnablement> {
+    return this.http.post<ProjectPackEnablement>('/memory-compliance-packs', body, options)
+  }
+
+  /**
+   * Remove the per-project enablement row for a pack. The project
+   * then falls back to the platform default set for this pack — use
+   * upsertProjectPack with `enabled: false` instead if you want to
+   * explicitly disable rather than revert.
+   */
+  async removeProjectPack(packId: string, options?: RequestOptions): Promise<void> {
+    await this.http.delete<void>(`/memory-compliance-packs/${encodeURIComponent(packId)}`, options)
+  }
+}
+
+export interface ProjectPackEnablement {
+  id: string
+  packId: string
+  enabled: boolean
+  config: Record<string, unknown>
+  enabledByUserId: string | null
+  created: string
+  updated: string
+}
+
+export interface UpsertProjectPackRequest {
+  packId: string
+  enabled: boolean
+  /** Pack-owned opaque config. Schema is the pack's responsibility. */
+  config?: Record<string, unknown>
 }
