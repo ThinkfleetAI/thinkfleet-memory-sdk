@@ -75,6 +75,19 @@ export interface AuditEvent {
   metadata: Record<string, unknown>
 }
 
+export interface CompliancePack {
+  /** Stable pack id — e.g. "hipaa", "gdpr". */
+  id: string
+  /** Pack version — bump when redaction/consent rules change. */
+  version: string
+  /** Human-readable description of what the pack enforces. */
+  description: string
+  /** Memory classes the pack claims jurisdiction over (e.g. "phi", "pii"). */
+  ownsClasses: string[]
+  /** Regulatory tags this pack maps to (e.g. "HIPAA", "GDPR-Art-9"). */
+  regulatoryTags: string[]
+}
+
 /**
  * GDPR-grade compliance surface (Phase 3f).
  *
@@ -161,5 +174,24 @@ export class ComplianceResource {
       query.eventTypes = params.eventTypes.join(',')
     }
     return this.http.get<AuditEvent[]>('/memory-compliance/audit', query, options)
+  }
+
+  /**
+   * List installed compliance packs. Packs claim jurisdiction over
+   * specific memory classes (e.g. HIPAA → `phi`) and enforce
+   * domain-specific redaction / consent / retention rules on every
+   * read. Surface this to tenants so they can see exactly what is
+   * being enforced on their data.
+   *
+   * @example
+   * ```ts
+   * const packs = await tf.compliance.listPacks()
+   * for (const pack of packs) {
+   *   console.log(`${pack.id}@${pack.version}: ${pack.regulatoryTags.join(', ')}`)
+   * }
+   * ```
+   */
+  async listPacks(options?: RequestOptions): Promise<CompliancePack[]> {
+    return this.http.get<CompliancePack[]>('/memory-compliance/packs', undefined, options)
   }
 }
