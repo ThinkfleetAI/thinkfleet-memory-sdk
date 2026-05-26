@@ -276,9 +276,30 @@ async function run(): Promise<void> {
     console.log(`      voice memory id=${m.id} fileId=${md.fileId}`)
   })
 
+  let docMemoryId: string | null = null
+  await test('observeDocument() stores doc + creates memory', async () => {
+    const docBytes = new TextEncoder().encode(
+      `SDK_SMOKE_DOC_${stamp}\nMulti-line plain text document used as a smoke-test attachment.`,
+    )
+    const m = await tf.memory.observeDocument({
+      subject: { kind: 'project', externalId: `smoke-doc-${stamp}` },
+      document: docBytes,
+      mimeType: 'text/plain',
+      fileName: `smoke-${stamp}.txt`,
+      content: `SDK_SMOKE_DOC_${stamp} — plain-text test document`,
+      activityType: 'document_capture',
+    })
+    if (!m.id) throw new Error(`observeDocument returned no id`)
+    const md = m.metadata as Record<string, unknown> | null
+    if (md?.modality !== 'document') throw new Error(`expected modality=document, got ${md?.modality}`)
+    docMemoryId = m.id
+    console.log(`      document memory id=${m.id} fileId=${md.fileId}`)
+  })
+
   await test('cleanup multimodal memories', async () => {
     if (imageMemoryId) await tf.memory.admin.delete(imageMemoryId)
     if (voiceMemoryId) await tf.memory.admin.delete(voiceMemoryId)
+    if (docMemoryId) await tf.memory.admin.delete(docMemoryId)
   })
 
   // ── Lattice ───────────────────────────────────────────────────────

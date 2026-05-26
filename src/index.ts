@@ -43,6 +43,7 @@ export type {
   ObserveRequest,
   ObserveAttachmentRequest,
   ObserveVoiceRequest,
+  ObserveDocumentRequest,
 } from './types/memory.js'
 
 export {

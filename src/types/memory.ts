@@ -118,6 +118,13 @@ export interface ObserveVoiceRequest
   audio: Uint8Array | string
 }
 
+/** Document-flavored convenience type — uses `document` instead of `image`. */
+export interface ObserveDocumentRequest
+  extends Omit<ObserveAttachmentRequest, 'image'> {
+  /** Document bytes — Uint8Array / Buffer — or a base64 string. */
+  document: Uint8Array | string
+}
+
 export interface CreateMemoryRequest {
   content: string
   type?: MemoryItemType

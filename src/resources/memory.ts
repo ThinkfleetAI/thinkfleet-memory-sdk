@@ -12,6 +12,7 @@ import {
   type MemorySearchResult,
   type MemoryStats,
   type ObserveAttachmentRequest,
+  type ObserveDocumentRequest,
   type ObserveRequest,
   type ObserveVoiceRequest,
   type PromoteMemoryRequest,
@@ -174,6 +175,39 @@ export class MemoryResource {
   ): Promise<MemoryItem> {
     const { audio, ...rest } = body
     return this.uploadAttachment({ ...rest, image: audio }, options)
+  }
+
+  /**
+   * Record a document (PDF, Word, Markdown, plain text, etc.) as a
+   * memory item. Backend stores the bytes as a MEMORY_ATTACHMENT file
+   * and creates a memory item of modality='document' pointing at it.
+   *
+   * Pass `content` for the searchable text. The engine doesn't auto-
+   * extract from PDFs/Office files yet (that lands behind the
+   * AP_MEMORY_DOC_EXTRACT_ENABLED flag in a follow-up); until then,
+   * use a parser of your choice (pdftotext, mammoth, etc.) before
+   * calling this method.
+   *
+   * @example
+   * ```ts
+   * import { readFile } from 'node:fs/promises'
+   *
+   * const pdfBytes = await readFile('contract.pdf')
+   * await tf.memory.observeDocument({
+   *   subject: { kind: 'project', externalId: 'acme-contract' },
+   *   document: pdfBytes,
+   *   mimeType: 'application/pdf',
+   *   fileName: 'acme-msa-2026.pdf',
+   *   content: 'ACME MSA dated 2026-04-12. Term: 24 months. Payment terms: NET 30. ...',
+   * })
+   * ```
+   */
+  async observeDocument(
+    body: ObserveDocumentRequest,
+    options?: RequestOptions,
+  ): Promise<MemoryItem> {
+    const { document, ...rest } = body
+    return this.uploadAttachment({ ...rest, image: document }, options)
   }
 
   private async uploadAttachment(
