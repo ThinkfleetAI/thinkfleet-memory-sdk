@@ -302,6 +302,49 @@ async function run(): Promise<void> {
     if (docMemoryId) await tf.memory.admin.delete(docMemoryId)
   })
 
+  // ── Phase 3: predict() / explain() / consent ──────────────────────
+  section('Phase 3 — predict() / explain() / consent')
+
+  await test('lattice.predict() returns ranked predictions', async () => {
+    const result = await tf.lattice.predict({
+      subject: { kind: 'workspace', externalId: `predict-${stamp}` },
+      horizonDays: 30,
+    })
+    if (!Array.isArray(result.predictions)) {
+      throw new Error(`unexpected shape: ${JSON.stringify(result)}`)
+    }
+    console.log(
+      `      active=${result.activePatternCount} predictions=${result.predictions.length}`,
+    )
+  })
+
+  const consentSubject = { kind: 'contact', externalId: `consent-test-${stamp}` }
+  await test('consent.optOut() records opt-out with reason', async () => {
+    const status = await tf.memory.consent.optOut({
+      subject: consentSubject,
+      reason: `SDK_SMOKE_OPTOUT_${stamp}`,
+    })
+    if (!status.optedOut) throw new Error('optedOut should be true after optOut()')
+    if (status.reason !== `SDK_SMOKE_OPTOUT_${stamp}`) {
+      throw new Error(`reason not preserved: ${status.reason}`)
+    }
+  })
+
+  await test('consent.getStatus() reflects opt-out', async () => {
+    const status = await tf.memory.consent.getStatus(consentSubject)
+    if (!status.optedOut) throw new Error('getStatus should report optedOut=true')
+  })
+
+  await test('consent.optIn() restores consent', async () => {
+    const status = await tf.memory.consent.optIn({ subject: consentSubject })
+    if (status.optedOut) throw new Error('optedOut should be false after optIn()')
+  })
+
+  await test('consent cleanup', async () => {
+    const status = await tf.memory.consent.getStatus(consentSubject)
+    if (status.memoryId) await tf.memory.admin.delete(status.memoryId)
+  })
+
   // ── Lattice ───────────────────────────────────────────────────────
   section('lattice — reads')
 
