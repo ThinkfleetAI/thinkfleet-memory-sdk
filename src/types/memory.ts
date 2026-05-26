@@ -208,6 +208,21 @@ export interface ListMemoryParams {
   offset?: number
 }
 
+export interface ConsolidateRequest {
+  /** Restrict to one subject. Omit for project-wide bulk pass. */
+  subject?: { kind: string; externalId: string }
+  /** How far back to scan for new activity. Default 30, max 365. */
+  windowDays?: number
+}
+
+export interface ConsolidateResult {
+  subjectsConsidered: number
+  observationsCreated: number
+  observationsUpdated: number
+  observationsSuperseded: number
+  durationMs: number
+}
+
 export interface MemoryStats {
   total: number
   pendingReview: number

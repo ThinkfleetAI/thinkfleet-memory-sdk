@@ -51,6 +51,8 @@ export type {
   ObserveAttachmentRequest,
   ObserveVoiceRequest,
   ObserveDocumentRequest,
+  ConsolidateRequest,
+  ConsolidateResult,
 } from './types/memory.js'
 
 export {

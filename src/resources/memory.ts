@@ -12,6 +12,8 @@ import {
   type MemorySearchRequest,
   type MemorySearchResult,
   type MemoryStats,
+  type ConsolidateRequest,
+  type ConsolidateResult,
   type ObserveAttachmentRequest,
   type ObserveDocumentRequest,
   type ObserveRequest,
@@ -456,6 +458,42 @@ export class AdminMemoryResource {
    */
   async delete(memoryId: string, options?: RequestOptions): Promise<void> {
     return this.http.delete(`/admin/memory/${memoryId}`, options)
+  }
+
+  /**
+   * LLM-driven deductive consolidation. Reads recent activity memories
+   * for a subject (or every subject if omitted), batches them with
+   * existing observations, and lets an LLM emit create / update /
+   * supersede actions.
+   *
+   * Each observation is a one-facet-per-row distilled fact with
+   * provenance (sourceMemoryIds[]) and a proofCount. This is the
+   * deductive counterpart to Lattice's inductive pattern miner —
+   * inductive answers "what's repeating?", deductive answers
+   * "what's true?".
+   *
+   * Architectural pattern from vectorize-io/hindsight; runs server-
+   * side using the platform's configured AI provider.
+   *
+   * @example
+   * ```ts
+   * // Consolidate one subject's recent activity into observations
+   * const result = await tf.memory.admin.consolidate({
+   *   subject: { kind: 'contact', externalId: 'sarah-pizza' },
+   *   windowDays: 30,
+   * })
+   * console.log(
+   *   `${result.observationsCreated} new, ` +
+   *   `${result.observationsUpdated} reinforced, ` +
+   *   `${result.observationsSuperseded} contradicted`
+   * )
+   * ```
+   */
+  async consolidate(
+    body: ConsolidateRequest = {},
+    options?: RequestOptions,
+  ): Promise<ConsolidateResult> {
+    return this.http.post<ConsolidateResult>('/admin/memory/llm-consolidate', body, options)
   }
 
   /**
