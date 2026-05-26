@@ -22,6 +22,13 @@ export type {
 
 // Resources
 export { MemoryResource, AdminMemoryResource } from './resources/memory.js'
+export { ConsentResource } from './resources/consent.js'
+export type {
+  ConsentSubject,
+  OptOutRequest,
+  OptInRequest,
+  ConsentStatus,
+} from './resources/consent.js'
 export { LatticeResource } from './resources/lattice.js'
 
 // Types — common

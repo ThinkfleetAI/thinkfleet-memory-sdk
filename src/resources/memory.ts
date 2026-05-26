@@ -1,3 +1,4 @@
+import { ConsentResource } from './consent.js'
 import type { HttpClient } from '../core/http-client.js'
 import type { RequestOptions } from '../core/types.js'
 import {
@@ -64,9 +65,27 @@ function toBase64(bytes: Uint8Array): string {
  */
 export class MemoryResource {
   readonly admin: AdminMemoryResource
+  readonly consent: ConsentResource
 
   constructor(private readonly http: HttpClient) {
     this.admin = new AdminMemoryResource(http)
+    this.consent = new ConsentResource(
+      http,
+      (params, options) => this.admin.list(params, options),
+      (body, options) =>
+        this.admin.create(
+          {
+            content: body.content,
+            type: body.type,
+            scope: body.scope,
+            importance: body.importance,
+            category: body.category,
+            metadata: body.metadata,
+          },
+          options,
+        ),
+      (memoryId, options) => this.admin.delete(memoryId, options),
+    )
   }
 
   /**
@@ -242,6 +261,66 @@ export class MemoryResource {
    */
   async delete(memoryId: string, options?: RequestOptions): Promise<void> {
     return this.http.delete(`/memory/${memoryId}`, options)
+  }
+
+  /**
+   * Right-to-explanation API. For a `behavior_pattern` memory item,
+   * fetch the raw source memories that produced it. For any other
+   * memory item, returns the item itself with `sourceMemories: []`.
+   *
+   * Powers two things:
+   *   1. Customer-facing GDPR Art. 22 / EU AI Act explanation
+   *      requests — "why did the agent predict this for me?"
+   *   2. Operator debugging — "what raw events drove this pattern?"
+   *
+   * The pattern memory carries `metadata.sourceMemoryIds[]` — this
+   * helper just resolves each id back to its full memory item via
+   * `admin.list()`. No backend extension needed; provenance was
+   * built into the storage shape from day one.
+   *
+   * @example
+   * ```ts
+   * const { memory, sourceMemories } = await tf.memory.explain(patternId)
+   * console.log(`Pattern: ${memory.content}`)
+   * console.log(`Derived from ${sourceMemories.length} raw memories:`)
+   * for (const m of sourceMemories) {
+   *   console.log(`  - ${m.created}: ${m.content}`)
+   * }
+   * ```
+   */
+  async explain(
+    memoryId: string,
+    options?: RequestOptions,
+  ): Promise<{ memory: MemoryItem; sourceMemories: MemoryItem[] }> {
+    // Fetch the target pattern. There's no GET /admin/memory/:id route;
+    // pull a page wide enough to find it (with category=lattice this
+    // is fast — the project usually has tens of patterns, not thousands).
+    const all = await this.admin.list({ limit: 200 }, options)
+    const memory = all.find((m) => m.id === memoryId)
+    if (!memory) {
+      throw new Error(`memory ${memoryId} not found in this project`)
+    }
+
+    // Pull source ids from metadata. Both camelCase and snake_case
+    // are accepted because the Rust engine emits camelCase but
+    // legacy items may carry snake.
+    const md = (memory.metadata ?? {}) as Record<string, unknown>
+    const rawIds = (md.sourceMemoryIds ?? md.source_memory_ids ?? []) as unknown
+    const ids = Array.isArray(rawIds) ? rawIds.filter((x): x is string => typeof x === 'string') : []
+
+    if (ids.length === 0) {
+      return { memory, sourceMemories: [] }
+    }
+
+    // Resolve each id by scanning the broader project memory list.
+    // For very large projects this won't scale; once the backend
+    // exposes a GET /admin/memory/:id route the SDK switches to
+    // parallel point-lookups.
+    const wide = await this.admin.list({ limit: 1000 }, options)
+    const idSet = new Set(ids)
+    const sourceMemories = wide.filter((m) => idSet.has(m.id))
+
+    return { memory, sourceMemories }
   }
 
   /**

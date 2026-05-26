@@ -9,6 +9,10 @@ export enum MemoryItemType {
   RULE = 'rule',
   CORRECTION = 'correction',
   SUMMARY = 'summary',
+  /** Behavioral pattern emitted by Lattice mining. */
+  BEHAVIOR_PATTERN = 'behavior_pattern',
+  /** Subject-level consent / opt-out record. See ConsentResource. */
+  CONSENT = 'consent',
 }
 
 export enum MemoryScope {
