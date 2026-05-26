@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Concurrency: cancel older runs on the same branch so we don't waste
+# CI minutes when developers push fixups.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Static checks ─────────────────────────────────────────────────
+  build:
+    name: typecheck + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      # Verify the published artifacts include the expected entry points.
+      # If a future change drops the d.ts file we want CI to catch it
+      # before anyone publishes to NPM.
+      - name: Verify dist artifacts
+        run: |
+          test -f dist/index.js  || (echo "missing dist/index.js"  && exit 1)
+          test -f dist/index.cjs || (echo "missing dist/index.cjs" && exit 1)
+          test -f dist/index.d.ts || (echo "missing dist/index.d.ts" && exit 1)
+          echo "✓ dist/index.{js,cjs,d.ts} present"
+
+  # ─── End-to-end smoke test ─────────────────────────────────────────
+  #
+  # Hits a live memory.thinkfleet.ai instance with an API key from
+  # repo secrets. Runs every method the SDK exposes against real
+  # responses — catches contract drift between SDK + backend that
+  # static typecheck can't see.
+  #
+  # Secrets the workflow needs (set in repo Settings → Secrets):
+  #   MEMORY_SDK_API_KEY    — sk-... API key for the QA project
+  #   MEMORY_SDK_PROJECT_ID — project id the API key belongs to
+  #   MEMORY_SDK_BASE_URL   — defaults to https://qa-memory.thinkfleet.ai
+  #                           if not set
+  #
+  # The job is skipped on PRs from forks (secrets aren't exposed to
+  # those by GitHub design). It still runs on internal PRs + on the
+  # push to main.
+  smoke:
+    name: smoke test against memory-qa
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run smoke test
+        env:
+          THINKFLEET_API_KEY: ${{ secrets.MEMORY_SDK_API_KEY }}
+          THINKFLEET_PROJECT_ID: ${{ secrets.MEMORY_SDK_PROJECT_ID }}
+          THINKFLEET_BASE_URL: ${{ secrets.MEMORY_SDK_BASE_URL || 'https://qa-memory.thinkfleet.ai' }}
+        run: |
+          if [ -z "$THINKFLEET_API_KEY" ] || [ -z "$THINKFLEET_PROJECT_ID" ]; then
+            echo "::warning::Smoke test skipped — MEMORY_SDK_API_KEY / MEMORY_SDK_PROJECT_ID secrets not configured"
+            exit 0
+          fi
+          npm run test:integration

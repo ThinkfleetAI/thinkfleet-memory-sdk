@@ -85,6 +85,39 @@ export interface ObserveRequest {
   metadata?: Record<string, unknown>
 }
 
+/**
+ * Image / audio attachment request. The `image` field accepts a
+ * Uint8Array (cross-platform), Node Buffer (which extends Uint8Array),
+ * or a pre-encoded base64 string for callers that already have one.
+ */
+export interface ObserveAttachmentRequest {
+  /** Subject this attachment is for. */
+  subject: { kind: string; externalId: string }
+  /** Bytes — Uint8Array / Buffer — or a pre-encoded base64 string. */
+  image: Uint8Array | string
+  /** Standard mime: `image/jpeg`, `image/png`, `audio/mpeg`, `audio/wav`, etc. */
+  mimeType: string
+  /** Optional file name for display. */
+  fileName?: string
+  /** Caption (image) / transcript (audio). Becomes the memory's searchable content. */
+  content?: string
+  /** Free-form activity tag (`receipt_capture`, `voicenote`, ...). */
+  activityType?: string
+  /** ISO-8601 timestamp the activity occurred at. Defaults to now. */
+  occurredAt?: string
+  /** 0-10 importance, defaults to 5. */
+  importance?: number
+  /** Free-form metadata merged into the memory item. */
+  metadata?: Record<string, unknown>
+}
+
+/** Voice-flavored convenience type — uses `audio` instead of `image`. */
+export interface ObserveVoiceRequest
+  extends Omit<ObserveAttachmentRequest, 'image'> {
+  /** Audio bytes — Uint8Array / Buffer — or a base64 string. */
+  audio: Uint8Array | string
+}
+
 export interface CreateMemoryRequest {
   content: string
   type?: MemoryItemType

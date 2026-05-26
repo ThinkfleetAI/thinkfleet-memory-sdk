@@ -11,11 +11,33 @@ import {
   type MemorySearchRequest,
   type MemorySearchResult,
   type MemoryStats,
+  type ObserveAttachmentRequest,
   type ObserveRequest,
+  type ObserveVoiceRequest,
   type PromoteMemoryRequest,
   type SubmitFeedbackRequest,
   type UpdateMemoryRequest,
 } from '../types/memory.js'
+
+/**
+ * Encode a binary payload as base64. Works in Node (Buffer present)
+ * and browsers (uses the WebStream-friendly btoa path).
+ */
+function toBase64(bytes: Uint8Array): string {
+  // Node: Buffer is the fastest path.
+  const g = globalThis as { Buffer?: { from(arr: Uint8Array): { toString(enc: string): string } } }
+  if (typeof g.Buffer !== 'undefined') {
+    return g.Buffer.from(bytes).toString('base64')
+  }
+  // Browser fallback: chunked btoa so we don't blow the call stack on
+  // multi-MB images.
+  let binary = ''
+  const chunk = 8192
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
 
 /**
  * Memory — primary surface for memory.thinkfleet.ai.
@@ -94,6 +116,75 @@ export class MemoryResource {
           ...(body.metadata ?? {}),
         },
       },
+      options,
+    )
+  }
+
+  /**
+   * Record an image as a memory item. The image is uploaded as a
+   * MEMORY_ATTACHMENT file, and a memory item is created with the
+   * subject + activity metadata you provide.
+   *
+   * Pass `content` for the searchable caption — the engine doesn't
+   * auto-caption today (vision LLM hook lands in a follow-up). The
+   * image bytes are stored in S3 and accessible via the file id in
+   * `metadata.fileId` of the returned memory.
+   *
+   * @example
+   * ```ts
+   * await tf.memory.observeImage({
+   *   subject: { kind: 'contact', externalId: 'sarah-pizza' },
+   *   image: imageBuffer,           // Uint8Array, Buffer, or base64 string
+   *   mimeType: 'image/jpeg',
+   *   fileName: 'receipt.jpg',
+   *   content: 'Receipt for $38 pizza order',
+   * })
+   * ```
+   */
+  async observeImage(
+    body: ObserveAttachmentRequest,
+    options?: RequestOptions,
+  ): Promise<MemoryItem> {
+    return this.uploadAttachment(body, options)
+  }
+
+  /**
+   * Record a voice clip / audio file as a memory item. The audio is
+   * uploaded as a MEMORY_ATTACHMENT file, and a memory item is created
+   * with the subject + activity metadata you provide.
+   *
+   * Pass `content` for the searchable transcript — the engine doesn't
+   * auto-transcribe today (Whisper hook lands in a follow-up). Audio
+   * bytes are stored in S3 and accessible via `metadata.fileId`.
+   *
+   * @example
+   * ```ts
+   * await tf.memory.observeVoice({
+   *   subject: { kind: 'user', externalId: 'ryan' },
+   *   audio: audioBuffer,
+   *   mimeType: 'audio/mpeg',
+   *   fileName: 'voicenote-2026-05-25.mp3',
+   *   content: 'Reminder to follow up on the SOC 2 audit next week',
+   * })
+   * ```
+   */
+  async observeVoice(
+    body: ObserveVoiceRequest,
+    options?: RequestOptions,
+  ): Promise<MemoryItem> {
+    const { audio, ...rest } = body
+    return this.uploadAttachment({ ...rest, image: audio }, options)
+  }
+
+  private async uploadAttachment(
+    body: ObserveAttachmentRequest,
+    options?: RequestOptions,
+  ): Promise<MemoryItem> {
+    const { image, ...rest } = body
+    const dataBase64 = typeof image === 'string' ? image : toBase64(image)
+    return this.http.post<MemoryItem>(
+      '/memory/attachments',
+      { ...rest, dataBase64 },
       options,
     )
   }

@@ -41,6 +41,8 @@ export type {
   ListMemoryParams,
   MemoryStats,
   ObserveRequest,
+  ObserveAttachmentRequest,
+  ObserveVoiceRequest,
 } from './types/memory.js'
 
 export {

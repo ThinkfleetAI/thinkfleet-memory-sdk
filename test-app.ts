@@ -225,6 +225,62 @@ async function run(): Promise<void> {
     )
   })
 
+  // ── observeImage() / observeVoice() multimodal ingest ─────────────
+  section('memory.observeImage() / observeVoice() — multimodal')
+
+  let imageMemoryId: string | null = null
+  let voiceMemoryId: string | null = null
+
+  await test('observeImage() stores image + creates memory', async () => {
+    // 1×1 transparent PNG — smallest valid image payload.
+    const tinyPng = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+      0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x62, 0x00, 0x01, 0x00, 0x00,
+      0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ])
+    const m = await tf.memory.observeImage({
+      subject: { kind: 'workspace', externalId: `smoke-img-${stamp}` },
+      image: tinyPng,
+      mimeType: 'image/png',
+      fileName: `smoke-${stamp}.png`,
+      content: `SDK_SMOKE_IMAGE_${stamp}`,
+      activityType: 'image_capture',
+    })
+    if (!m.id) throw new Error(`observeImage returned no id`)
+    const md = m.metadata as Record<string, unknown> | null
+    if (md?.modality !== 'image') throw new Error(`expected modality=image, got ${md?.modality}`)
+    if (!md?.fileId) throw new Error(`expected metadata.fileId; got: ${JSON.stringify(md)}`)
+    imageMemoryId = m.id
+    console.log(`      image memory id=${m.id} fileId=${md.fileId}`)
+  })
+
+  await test('observeVoice() stores audio + creates memory', async () => {
+    // Tiny 1-byte audio stub — engine just stores bytes; format
+    // doesn't need to be playable for the smoke test.
+    const audio = new Uint8Array([0x00])
+    const m = await tf.memory.observeVoice({
+      subject: { kind: 'user', externalId: `smoke-voice-${stamp}` },
+      audio,
+      mimeType: 'audio/wav',
+      fileName: `smoke-${stamp}.wav`,
+      content: `SDK_SMOKE_VOICE_${stamp}`,
+      activityType: 'voicenote',
+    })
+    if (!m.id) throw new Error(`observeVoice returned no id`)
+    const md = m.metadata as Record<string, unknown> | null
+    if (md?.modality !== 'audio') throw new Error(`expected modality=audio, got ${md?.modality}`)
+    voiceMemoryId = m.id
+    console.log(`      voice memory id=${m.id} fileId=${md.fileId}`)
+  })
+
+  await test('cleanup multimodal memories', async () => {
+    if (imageMemoryId) await tf.memory.admin.delete(imageMemoryId)
+    if (voiceMemoryId) await tf.memory.admin.delete(voiceMemoryId)
+  })
+
   // ── Lattice ───────────────────────────────────────────────────────
   section('lattice — reads')
 
