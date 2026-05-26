@@ -250,6 +250,41 @@ export interface PredictResult {
   durationMs: number
 }
 
+// ── Profile ──────────────────────────────────────────────────────
+
+export interface RiskIndicator {
+  /** "declining_engagement", "rfm_at_risk_high_value", ... */
+  kind: string
+  description: string
+  /** 0..1 severity. */
+  severity: number
+  /** Pattern memory id that produced the signal. */
+  sourcePatternId: string
+}
+
+/**
+ * Behavioral profile snapshot — "who is this subject" view. Non-temporal
+ * counterpart to PredictResult. Aggregates the subject's active behavior
+ * patterns into one payload.
+ */
+export interface SubjectProfile {
+  subject: Subject
+  /** RFM segment label when an rfm_segment pattern is active. */
+  rfmSegment: string | null
+  recencyScore: number | null
+  frequencyScore: number | null
+  monetaryScore: number | null
+  /** Subject's dominant entity (from entity_preference). */
+  topEntity: string | null
+  /** "weekly", "Fridays at 19:00", etc. */
+  cadenceSummary: string | null
+  risks: RiskIndicator[]
+  /** Ids of every pattern that fed this profile. */
+  contributingPatternIds: string[]
+  generatedAt: string
+  durationMs: number
+}
+
 export interface MonitorStatus {
   /** ISO timestamp of the last monitor tick, or null if it has never run. */
   lastTickAt: string | null

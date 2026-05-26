@@ -88,4 +88,6 @@ export type {
   PredictRequest,
   PredictedEvent,
   PredictResult,
+  SubjectProfile,
+  RiskIndicator,
 } from './types/lattice.js'

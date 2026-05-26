@@ -13,6 +13,9 @@ import type {
   MonitorTickResult,
   PredictRequest,
   PredictResult,
+  RiskIndicator,
+  Subject,
+  SubjectProfile,
 } from '../types/lattice.js'
 
 /**
@@ -177,5 +180,26 @@ export class LatticeResource {
     options?: RequestOptions,
   ): Promise<PredictResult> {
     return this.http.post<PredictResult>('/lattice/predict', body, options)
+  }
+
+  /**
+   * Behavioral profile snapshot for a subject — RFM segment + top
+   * entity + cadence summary + risk indicators. Non-temporal
+   * counterpart to predict(): predict answers "what will they do?",
+   * getProfile answers "who are they?".
+   *
+   * @example
+   * ```ts
+   * const p = await tf.lattice.getProfile({
+   *   kind: 'contact', externalId: 'sarah-pizza',
+   * })
+   * console.log(p.rfmSegment, p.cadenceSummary, p.risks)
+   * ```
+   */
+  async getProfile(
+    subject: Subject,
+    options?: RequestOptions,
+  ): Promise<SubjectProfile> {
+    return this.http.post<SubjectProfile>('/lattice/profile', { subject }, options)
   }
 }
