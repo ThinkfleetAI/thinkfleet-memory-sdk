@@ -18,6 +18,12 @@ export interface ContextBuildRequest {
   memoryLimit?: number
   /** Max predictions. Default 5. */
   predictionLimit?: number
+  /**
+   * Phase 3f min-necessary access — drop memories whose `category`
+   * is in this list. Use to keep medical / HR / PII out of queries
+   * that don't need them, even when they share the same project.
+   */
+  excludeCategories?: string[]
 }
 
 export interface ContextBundle {
