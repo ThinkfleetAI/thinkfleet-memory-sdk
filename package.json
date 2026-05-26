@@ -28,7 +28,8 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test:integration": "tsx test-app.ts",
-    "seed": "tsx scripts/seed-memory.ts"
+    "seed": "tsx scripts/seed-memory.ts",
+    "seed:lattice": "tsx scripts/seed-lattice.ts"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

@@ -54,6 +54,35 @@ export interface ExtractPatternsRequest {
   windowDays?: number
   /** Force re-extraction even if recent patterns exist. */
   force?: boolean
+  /**
+   * Activity source. `memories` (default) mines from memory items via
+   * the Rust engine; `contact_events` keeps the legacy TS path.
+   */
+  source?: 'memories' | 'contact_events'
+  /**
+   * Restrict mining to one subject. Only meaningful when
+   * source='memories' (the contact_events path is contact-only).
+   */
+  subject?: Subject
+}
+
+export interface Subject {
+  /** Free-form: "contact", "user", "team", "workspace", "service", etc. */
+  kind: string
+  /** Stable external id within `kind`. Opaque to the engine. */
+  externalId: string
+}
+
+/**
+ * Convenience request type for `tf.lattice.mineMemories()`. Same shape
+ * as `ExtractPatternsRequest` but without `contactId` (legacy field
+ * that doesn't apply to the subject-agnostic mining path) and without
+ * `source` (the helper sets it implicitly).
+ */
+export interface MineMemoriesRequest {
+  subject?: Subject
+  windowDays?: number
+  force?: boolean
 }
 
 export interface ContactExtractError {

@@ -8,6 +8,7 @@ import type {
   LatticeContextBundle,
   ListContactPatternsResponse,
   ListPatternsParams,
+  MineMemoriesRequest,
   MonitorStatus,
   MonitorTickResult,
 } from '../types/lattice.js'
@@ -38,7 +39,11 @@ export class LatticeResource {
    * Force pattern (re-)extraction. Omit `contactId` for a project-wide
    * bulk run; pass it to limit to one contact.
    *
-   * Rate-limited server-side at 10 calls/minute when the platform's
+   * Defaults to mining the memory corpus (source='memories') via the
+   * Rust engine. Pass source='contact_events' to use the legacy
+   * TS path that mines from clawdbot_contact_event.
+   *
+   * Rate-limited server-side at 5 calls/minute when the platform's
    * auth-aware rate limiter is enabled.
    */
   async extractPatterns(
@@ -46,6 +51,38 @@ export class LatticeResource {
     options?: RequestOptions,
   ): Promise<ExtractPatternsResult> {
     return this.http.post<ExtractPatternsResult>('/lattice/patterns/extract', body, options)
+  }
+
+  /**
+   * Mine behavioral patterns from the memory corpus. Subject-agnostic:
+   * works on any subject kind (contact, user, team, workspace, service).
+   * Patterns become memory items of type='behavior_pattern' on the
+   * storage side and are retrievable via `tf.memory.admin.list()` or
+   * `tf.memory.admin.search()`.
+   *
+   * Thin wrapper over `extractPatterns({ source: 'memories', ... })`.
+   *
+   * @example
+   * ```ts
+   * // Mine across every subject in the project
+   * const result = await tf.lattice.mineMemories({ windowDays: 90 })
+   *
+   * // Mine for one specific subject
+   * await tf.lattice.mineMemories({
+   *   subject: { kind: 'contact', externalId: 'sarah' },
+   *   windowDays: 30,
+   * })
+   * ```
+   */
+  async mineMemories(
+    body: MineMemoriesRequest = {},
+    options?: RequestOptions,
+  ): Promise<ExtractPatternsResult> {
+    return this.http.post<ExtractPatternsResult>(
+      '/lattice/patterns/extract',
+      { ...body, source: 'memories' },
+      options,
+    )
   }
 
   /**

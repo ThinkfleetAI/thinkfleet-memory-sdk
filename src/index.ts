@@ -57,6 +57,8 @@ export type {
   BehaviorPatternMetadata,
   BehaviorPatternRecord,
   ExtractPatternsRequest,
+  MineMemoriesRequest,
+  Subject,
   ContactExtractError,
   ExtractPatternsResult,
   ListPatternsParams,
