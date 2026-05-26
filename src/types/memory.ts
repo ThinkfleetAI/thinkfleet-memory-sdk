@@ -58,6 +58,33 @@ export interface MemoryItem extends BaseModel {
   negativeRatingCount: number
 }
 
+/**
+ * Ergonomic ingest shape for `tf.memory.observe()`. Pair the
+ * agent-friendly required fields (`subject`, `content`) with optional
+ * structured overrides — the SDK fills sensible defaults for type,
+ * scope, importance, etc.
+ */
+export interface ObserveRequest {
+  /** Subject this observation applies to. Required so mining works. */
+  subject: { kind: string; externalId: string }
+  /** Free-text content of the observation. */
+  content: string
+  /** Event type identifier (`pizza_order`, `code_commit`, ...). Free-form. */
+  activityType?: string
+  /** ISO-8601 timestamp the activity occurred at. Defaults to now server-side. */
+  occurredAt?: string
+  /** Override the default `EVENT` type if this is e.g. an OBSERVATION. */
+  type?: MemoryItemType
+  /** Override the default PROJECT scope. */
+  scope?: MemoryScope
+  /** 0-10 importance, defaults to 5. */
+  importance?: number
+  /** Optional category tag for filtering. */
+  category?: string
+  /** Free-form metadata — merged into the underlying memory item. */
+  metadata?: Record<string, unknown>
+}
+
 export interface CreateMemoryRequest {
   content: string
   type?: MemoryItemType

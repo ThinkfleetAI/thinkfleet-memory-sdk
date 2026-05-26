@@ -40,6 +40,7 @@ export type {
   SubmitFeedbackRequest,
   ListMemoryParams,
   MemoryStats,
+  ObserveRequest,
 } from './types/memory.js'
 
 export {

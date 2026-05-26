@@ -176,6 +176,55 @@ async function run(): Promise<void> {
     if (stillThere) throw new Error(`item ${createdId} still present after delete`)
   })
 
+  // ── observe() ergonomic ingest ────────────────────────────────────
+  section('memory.observe() — ergonomic ingest')
+
+  let observedId: string | null = null
+  await test('observe() creates a memory with subject metadata', async () => {
+    const m = await tf.memory.observe({
+      subject: { kind: 'workspace', externalId: `smoke-test-${stamp}` },
+      content: `SDK_SMOKE_OBSERVE_${stamp} — observed activity from the smoke test`,
+      activityType: 'smoke_test_event',
+    })
+    if (!m.id) throw new Error(`observe returned no id: ${JSON.stringify(m)}`)
+    if (m.type !== 'event') throw new Error(`expected type=event, got ${m.type}`)
+    observedId = m.id
+    console.log(`      observed id=${m.id} type=${m.type}`)
+  })
+
+  await test('observe() carries subject + activityType in metadata', async () => {
+    if (!observedId) throw new Error('skipped — no observedId')
+    const items = await tf.memory.admin.list({ limit: 100 })
+    const found = items.find((m) => m.id === observedId)
+    if (!found) throw new Error(`observed memory ${observedId} not in list`)
+    const md = found.metadata as Record<string, unknown> | null
+    const subject = md?.subject as { kind?: string; externalId?: string } | undefined
+    if (subject?.kind !== 'workspace') {
+      throw new Error(`expected subject.kind=workspace, got ${JSON.stringify(subject)}`)
+    }
+    if (md?.eventType !== 'smoke_test_event') {
+      throw new Error(`expected eventType=smoke_test_event, got ${md?.eventType}`)
+    }
+  })
+
+  await test('cleanup observed memory', async () => {
+    if (!observedId) throw new Error('skipped — no observedId')
+    await tf.memory.admin.delete(observedId)
+  })
+
+  // ── lattice.mineMemories() end-to-end ─────────────────────────────
+  section('lattice.mineMemories() — end-to-end mine path')
+
+  await test('mineMemories({ windowDays: 90 }) returns counters', async () => {
+    const result = await tf.lattice.mineMemories({ windowDays: 90 })
+    if (typeof result.patternsCreated !== 'number') {
+      throw new Error(`unexpected shape: ${JSON.stringify(result)}`)
+    }
+    console.log(
+      `      created=${result.patternsCreated} refreshed=${result.patternsRefreshed} duration=${result.durationMs}ms`,
+    )
+  })
+
   // ── Lattice ───────────────────────────────────────────────────────
   section('lattice — reads')
 

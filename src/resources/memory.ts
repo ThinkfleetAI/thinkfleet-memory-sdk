@@ -1,17 +1,20 @@
 import type { HttpClient } from '../core/http-client.js'
 import type { RequestOptions } from '../core/types.js'
-import type {
-  ConfirmMemoryRequest,
-  CreateMemoryRequest,
-  ListMemoryParams,
-  MemoryFeedback,
-  MemoryItem,
-  MemorySearchRequest,
-  MemorySearchResult,
-  MemoryStats,
-  PromoteMemoryRequest,
-  SubmitFeedbackRequest,
-  UpdateMemoryRequest,
+import {
+  MemoryItemType,
+  MemoryScope,
+  type ConfirmMemoryRequest,
+  type CreateMemoryRequest,
+  type ListMemoryParams,
+  type MemoryFeedback,
+  type MemoryItem,
+  type MemorySearchRequest,
+  type MemorySearchResult,
+  type MemoryStats,
+  type ObserveRequest,
+  type PromoteMemoryRequest,
+  type SubmitFeedbackRequest,
+  type UpdateMemoryRequest,
 } from '../types/memory.js'
 
 /**
@@ -41,6 +44,58 @@ export class MemoryResource {
 
   constructor(private readonly http: HttpClient) {
     this.admin = new AdminMemoryResource(http)
+  }
+
+  /**
+   * Ergonomic ingest for agents. One-liner that writes a memory item
+   * with sensible defaults (type=event, scope=project, status=confirmed,
+   * importance=5) and stamps a `metadata.subject` so the mining engine
+   * picks it up.
+   *
+   * Use this when you want to record "something happened" — an action,
+   * an observation, an interaction. Pattern mining runs over these
+   * items automatically (15-min cron, or call `tf.lattice.mineMemories()`
+   * to force).
+   *
+   * @example
+   * ```ts
+   * // Workspace activity
+   * await tf.memory.observe({
+   *   subject: { kind: 'workspace', externalId: 'ryan-laptop' },
+   *   content: 'Ran Claude Code session — 45 min, 3 files edited',
+   *   activityType: 'claude_code_session',
+   * })
+   *
+   * // Customer interaction
+   * await tf.memory.observe({
+   *   subject: { kind: 'contact', externalId: 'sarah-pizza' },
+   *   content: 'Ordered large pepperoni pizza, no tip',
+   *   activityType: 'pizza_order',
+   *   metadata: { total: 38.50, currency: 'USD' },
+   * })
+   * ```
+   */
+  async observe(
+    body: ObserveRequest,
+    options?: RequestOptions,
+  ): Promise<MemoryItem> {
+    return this.admin.create(
+      {
+        content: body.content,
+        type: body.type ?? MemoryItemType.EVENT,
+        scope: body.scope ?? MemoryScope.PROJECT,
+        importance: body.importance ?? 5,
+        category: body.category,
+        source: 'admin_created',
+        metadata: {
+          subject: body.subject,
+          ...(body.activityType ? { eventType: body.activityType } : {}),
+          ...(body.occurredAt ? { occurredAt: body.occurredAt } : {}),
+          ...(body.metadata ?? {}),
+        },
+      },
+      options,
+    )
   }
 
   /**
