@@ -202,4 +202,106 @@ export class LatticeResource {
   ): Promise<SubjectProfile> {
     return this.http.post<SubjectProfile>('/lattice/profile', { subject }, options)
   }
+
+  /**
+   * Find subjects in the project whose behavior looks similar to the
+   * target. Returns top-K nearest neighbors ranked by a blended
+   * similarity score (RFM + entity Jaccard + pattern-kind Jaccard).
+   *
+   * @example
+   * ```ts
+   * const { members } = await tf.lattice.getCohort({
+   *   subject: { kind: 'contact', externalId: 'sarah-pizza' },
+   *   k: 10,
+   *   minSimilarity: 0.5,
+   * })
+   * for (const m of members) {
+   *   console.log(`${m.subject.externalId}: ${m.similarity.toFixed(2)} (${m.rfmSegment})`)
+   * }
+   * ```
+   */
+  async getCohort(
+    body: GetCohortRequest,
+    options?: RequestOptions,
+  ): Promise<GetCohortResponse> {
+    return this.http.post<GetCohortResponse>('/lattice/cohort', body, options)
+  }
+
+  /**
+   * Cohort-aware predictions — "people like the target also did X."
+   * Computes the target's cohort first, then aggregates each member's
+   * predictions weighted by similarity. Predictions that show up in
+   * multiple cohort members reinforce each other; solo predictions
+   * get penalized.
+   *
+   * Every prediction carries `supportingSubjects` + `sourceMemoryIds`
+   * so the answer is fully traceable back to which cohort members
+   * (and which raw memories of theirs) contributed.
+   *
+   * @example
+   * ```ts
+   * const { predictions } = await tf.lattice.predictByCohort({
+   *   subject: { kind: 'contact', externalId: 'sarah-pizza' },
+   *   cohortK: 10,
+   *   predictionLimit: 5,
+   * })
+   * for (const p of predictions) {
+   *   console.log(`${p.description} (${(p.confidence * 100).toFixed(0)}% conf, ${p.supportingSubjects.length} supporters)`)
+   * }
+   * ```
+   */
+  async predictByCohort(
+    body: PredictByCohortRequest,
+    options?: RequestOptions,
+  ): Promise<PredictByCohortResponse> {
+    return this.http.post<PredictByCohortResponse>('/lattice/cohort/predict', body, options)
+  }
+}
+
+export interface GetCohortRequest {
+  subject: Subject
+  /** How many nearest neighbors to return. Server clamps to [1, 50]. Default 10. */
+  k?: number
+  /** Minimum similarity (0..1) for a member to be included. Default 0. */
+  minSimilarity?: number
+}
+
+export interface CohortMember {
+  subject: Subject
+  similarity: number
+  rfmSegment: string
+  patternKinds: string[]
+}
+
+export interface GetCohortResponse {
+  target: Subject
+  members: CohortMember[]
+  candidateCount: number
+  generatedAt: string
+  durationMs: number
+}
+
+export interface PredictByCohortRequest {
+  subject: Subject
+  cohortK?: number
+  predictionLimit?: number
+  minSimilarity?: number
+}
+
+export interface CohortPrediction {
+  patternKind: string
+  description: string
+  expectedAt: string
+  confidence: number
+  windowMinutes: number
+  supportingSubjects: Subject[]
+  sourceMemoryIds: string[]
+}
+
+export interface PredictByCohortResponse {
+  target: Subject
+  cohort: CohortMember[]
+  predictions: CohortPrediction[]
+  generatedAt: string
+  durationMs: number
 }
