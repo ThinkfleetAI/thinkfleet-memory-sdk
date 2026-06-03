@@ -1,5 +1,6 @@
 import type { HttpClient } from '../core/http-client.js'
 import type { RequestOptions } from '../core/types.js'
+import type { EmitEventRequest, EmitEventResult } from '../types/lattice.js'
 
 /** Severity tier emitted on every event. */
 export type EventSeverity = 'info' | 'warn' | 'critical'
@@ -73,6 +74,27 @@ export class EventsResource {
       query.eventTypes = params.eventTypes.join(',')
     }
     return this.http.get<MemoryEvent[]>('/memory-events', query, options)
+  }
+
+  /**
+   * Append an event to the durable log. Matching alert rules fire
+   * synchronously. The write-side counterpart to poll().
+   *
+   * @example
+   * ```ts
+   * await tf.events.emit({
+   *   eventType: 'cart.abandoned',
+   *   subject: { kind: 'contact', externalId: 'sarah' },
+   *   severity: 'warn',
+   *   payloadJson: JSON.stringify({ cartValue: 84 }),
+   * })
+   * ```
+   */
+  async emit(
+    body: EmitEventRequest,
+    options?: RequestOptions,
+  ): Promise<EmitEventResult> {
+    return this.http.post<EmitEventResult>('/lattice/events/emit', body, options)
   }
 
   /**

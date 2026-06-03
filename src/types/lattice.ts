@@ -222,6 +222,20 @@ export interface PredictRequest {
   limit?: number
   /** Minimum confidence (0..1) to surface. Default 0.5. */
   minConfidence?: number
+  /**
+   * Forward view: how many future occurrences to project per fixed-cadence
+   * pattern. 1 (default) = just the next firing; higher yields "the next N
+   * firings", each with its own horizon-decayed confidence.
+   */
+  occurrencesPerPattern?: number
+  /**
+   * Predictions→events bridge: when true, emit a `prediction.imminent` event
+   * for each prediction due within `imminentWithinHours`. Per-day dedupe means
+   * a daily run won't double-fire. Default false.
+   */
+  emitEvents?: boolean
+  /** Imminence window for event emission, in hours. Default 48, clamped [1, 720]. */
+  imminentWithinHours?: number
 }
 
 /** One projected event derived from one active behavior pattern. */
@@ -245,6 +259,8 @@ export interface PredictResult {
   predictions: PredictedEvent[]
   /** Total active patterns considered, whether or not each produced a prediction. */
   activePatternCount: number
+  /** Number of `prediction.imminent` events emitted (when emitEvents=true). */
+  eventsEmitted?: number
   /** ISO timestamp the prediction was generated. */
   generatedAt: string
   durationMs: number
@@ -294,4 +310,95 @@ export interface MonitorStatus {
   patternsDue: number
   /** Total active patterns the monitor is watching. */
   activePatternCount: number
+}
+
+// ── Estimate (deterministic estimators, e.g. PhenoAge bio-age) ───────
+
+export interface EstimateRequest {
+  /** Subject whose signals to score. */
+  subject: Subject
+  /** Which estimator to run. v1: "phenoage". */
+  estimatorId: string
+  /**
+   * Persist the score as a memory (kind="estimate") so it builds a trajectory
+   * and feeds the calibration loop. Default false (compute-only).
+   */
+  persist?: boolean
+}
+
+export interface ScoreContributor {
+  signal: string
+  /** Signed contribution to the score (positive pushed it up). */
+  contribution: number
+}
+
+export interface EstimateResult {
+  subject: Subject
+  estimatorId: string
+  /** True when every required signal was present and a score was produced. */
+  ok: boolean
+  value: number
+  unit: string
+  contributors: ScoreContributor[]
+  confidence: number
+  provenance: string[]
+  /** Always set: an "estimate" framing, never a diagnosis. */
+  framing: string
+  disclaimer: string
+  /** Required signals with no reading, when ok=false. */
+  missingSignals: string[]
+}
+
+// ── Calibration (prediction reliability) ─────────────────────────────
+
+export interface CalibrationBucket {
+  lower: number
+  upper: number
+  /** Active patterns whose stated confidence falls in this band. */
+  patterns: number
+  /** Predictions from those patterns that have been scored (hits+misses). */
+  predictions: number
+  hits: number
+  misses: number
+  /** hits / predictions; only meaningful when hasData is true. */
+  realizedHitRate: number
+  /** False when no prediction in this band has been scored yet. */
+  hasData: boolean
+}
+
+export interface CalibrationReport {
+  buckets: CalibrationBucket[]
+  totalPatterns: number
+  totalPredictions: number
+}
+
+export interface GetCalibrationParams {
+  /** Number of equal-width confidence buckets over [0,1]. Default 5, clamped [1,20]. */
+  bucketCount?: number
+}
+
+// ── Emit event (write-side of the event log) ─────────────────────────
+
+export interface EmitEventRequest {
+  eventType: string
+  subject?: Subject
+  /** info | warn | critical. Defaults to "info". */
+  severity?: string
+  /** Free-form JSON payload (can include "value", "channel", etc.). */
+  payloadJson?: string
+  sourceMemoryIds?: string[]
+  sourcePatternId?: string
+}
+
+export interface EmitEventResult {
+  /** False when a dedupe collision suppressed the insert. */
+  emitted: boolean
+  event: {
+    id: string
+    eventType: string
+    severity: string
+    occurredAt: string
+  } | null
+  /** Number of alert rules that matched + dispatched. */
+  alertDispatches: number
 }
