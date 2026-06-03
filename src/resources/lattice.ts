@@ -13,6 +13,10 @@ import type {
   MonitorTickResult,
   PredictRequest,
   PredictResult,
+  EstimateRequest,
+  EstimateResult,
+  CalibrationReport,
+  GetCalibrationParams,
   RiskIndicator,
   Subject,
   SubjectProfile,
@@ -255,6 +259,43 @@ export class LatticeResource {
     options?: RequestOptions,
   ): Promise<PredictByCohortResponse> {
     return this.http.post<PredictByCohortResponse>('/lattice/cohort/predict', body, options)
+  }
+
+  /**
+   * Run a deterministic estimator (e.g. PhenoAge biological age) over a
+   * subject's biomarker signals. Returns a wellness estimate with per-signal
+   * contributors and a not-a-diagnosis disclaimer — never a medical verdict.
+   *
+   * @example
+   * ```ts
+   * const est = await tf.lattice.estimate({
+   *   subject: { kind: 'patient', externalId: 'p-123' },
+   *   estimatorId: 'phenoage',
+   * })
+   * if (est.ok) console.log(`${est.value} ${est.unit} — ${est.disclaimer}`)
+   * else console.log('missing:', est.missingSignals)
+   * ```
+   */
+  async estimate(
+    body: EstimateRequest,
+    options?: RequestOptions,
+  ): Promise<EstimateResult> {
+    return this.http.post<EstimateResult>('/lattice/estimate', body, options)
+  }
+
+  /**
+   * Prediction calibration report: confidence buckets mapped to realized
+   * hit-rates. Tells you whether "80% confident" predictions actually fire
+   * ~80% of the time.
+   */
+  async getCalibration(
+    params: GetCalibrationParams = {},
+    options?: RequestOptions,
+  ): Promise<CalibrationReport> {
+    const query: Record<string, string | number | undefined> = {
+      bucketCount: params.bucketCount,
+    }
+    return this.http.get<CalibrationReport>('/lattice/calibration', query, options)
   }
 }
 

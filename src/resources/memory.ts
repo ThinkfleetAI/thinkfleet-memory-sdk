@@ -14,6 +14,10 @@ import {
   type MemoryStats,
   type ConsolidateRequest,
   type ConsolidateResult,
+  type BackfillEmbeddingsRequest,
+  type BackfillEmbeddingsResult,
+  type DedupRequest,
+  type DedupResult,
   type ObserveAttachmentRequest,
   type ObserveDocumentRequest,
   type ObserveRequest,
@@ -494,6 +498,36 @@ export class AdminMemoryResource {
     options?: RequestOptions,
   ): Promise<ConsolidateResult> {
     return this.http.post<ConsolidateResult>('/admin/memory/llm-consolidate', body, options)
+  }
+
+  /**
+   * Vectorize memory items that have no embedding yet (catch-up
+   * embedding work-list). Call repeatedly until `embedded` is 0 to drain a
+   * large corpus. Idempotent — already-embedded items are skipped.
+   *
+   * @example
+   * ```ts
+   * let n: number
+   * do { ({ embedded: n } = await tf.memory.admin.backfillEmbeddings({ batch: 500 })) } while (n > 0)
+   * ```
+   */
+  async backfillEmbeddings(
+    body: BackfillEmbeddingsRequest = {},
+    options?: RequestOptions,
+  ): Promise<BackfillEmbeddingsResult> {
+    return this.http.post<BackfillEmbeddingsResult>('/admin/memory/embeddings/backfill', body, options)
+  }
+
+  /**
+   * Semantic dedup: collapse near-duplicate memories (cosine ≥ threshold),
+   * keep the strongest, supersede the rest. Distinct from consolidate(), which
+   * is the LLM-driven deductive-observations pass.
+   */
+  async dedup(
+    body: DedupRequest = {},
+    options?: RequestOptions,
+  ): Promise<DedupResult> {
+    return this.http.post<DedupResult>('/admin/memory/dedup', body, options)
   }
 
   /**

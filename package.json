@@ -1,6 +1,6 @@
 {
   "name": "@thinkfleet/memory-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TypeScript SDK for memory.thinkfleet.ai — admin + project memory CRUD, semantic search, feedback, and Lattice behavioral patterns",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -27,6 +27,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
+    "check:proto": "node scripts/check-proto-drift.mjs",
     "test:integration": "tsx test-app.ts",
     "seed": "tsx scripts/seed-memory.ts",
     "seed:lattice": "tsx scripts/seed-lattice.ts"

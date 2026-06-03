@@ -1,0 +1,38 @@
+{
+  "_comment": "Tracks how each engine RPC (proto/memory.proto) is surfaced in the SDK. check-proto-drift.mjs fails CI if the proto gains an RPC that is in neither list, so the SDK can't silently fall behind the engine. Vendored from thinkfleet-memory-engine main @ d96330867a99.",
+  "covered": {
+    "Save": "memory.admin.create / memory.observe",
+    "Observe": "memory.observe",
+    "Search": "memory.admin.search",
+    "GetStats": "memory.admin.stats",
+    "MineMemories": "lattice.mineMemories",
+    "Predict": "lattice.predict",
+    "Estimate": "lattice.estimate",
+    "Consolidate": "memory.admin.dedup",
+    "Backfill": "memory.admin.backfillEmbeddings",
+    "GetCalibration": "lattice.getCalibration",
+    "GetProfile": "lattice.getProfile",
+    "BuildContext": "context.build",
+    "EmitEvent": "events.emit",
+    "PollEvents": "events.poll",
+    "CreateAlertRule": "alerts.create",
+    "ListAlertRules": "alerts.list",
+    "GetAlertRule": "alerts.get",
+    "UpdateAlertRule": "alerts.update",
+    "DeleteAlertRule": "alerts.delete",
+    "ListAlertFires": "alerts.listFires",
+    "ExportSubject": "compliance.exportSubject",
+    "HardDeleteSubject": "compliance.hardDeleteSubject",
+    "ListAuditEvents": "compliance.listAuditEvents",
+    "ListPacks": "compliance.listPacks",
+    "GetCohort": "lattice.getCohort",
+    "PredictByCohort": "lattice.predictByCohort"
+  },
+  "internal": {
+    "ResolveOrCreateEntity": "graph primitive; entity resolution runs server-side during extraction",
+    "ExtractAndWire": "graph primitive; extraction is automatic/gated server-side",
+    "BudgetGate": "platform-internal spend gate, not a consumer operation",
+    "RecordCost": "platform-internal cost accounting, not a consumer operation",
+    "Health": "liveness probe; not part of the consumer surface"
+  }
+}

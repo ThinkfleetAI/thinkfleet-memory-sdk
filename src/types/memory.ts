@@ -230,3 +230,28 @@ export interface MemoryStats {
   byScope: Record<string, number>
   byStatus: Record<string, number>
 }
+
+// ── Maintenance ops (embedding backfill + semantic dedup) ────────────
+
+export interface BackfillEmbeddingsRequest {
+  /** Max items to embed this call. Default 500, clamped [1, 10000]. Call repeatedly until embedded=0. */
+  batch?: number
+}
+
+export interface BackfillEmbeddingsResult {
+  /** Items vectorized on this pass. */
+  embedded: number
+}
+
+export interface DedupRequest {
+  /** Cosine threshold for "same memory". Default 0.92. */
+  threshold?: number
+  /** Max items to scan this pass. Default 1000, clamped [1, 10000]. */
+  scanLimit?: number
+}
+
+export interface DedupResult {
+  scanned: number
+  groups: number
+  superseded: number
+}

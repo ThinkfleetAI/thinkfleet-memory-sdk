@@ -1,0 +1,1051 @@
+// memory.thinkfleet.ai — gRPC contract.
+//
+// Defines the boundary between the TypeScript Fastify shell (cold
+// path: Cognito JWT verification, Lago entitlement lookup, REST
+// routing, admin UI, billing event emission) and the Rust hot path
+// (crates/memory-retrieve, sub-30ms p99 retrieval that wraps the
+// thinkfleet-memory-engine library).
+//
+// Auth model: the TS shell validates Cognito JWTs at the edge and
+// passes the resolved platform_id + user_id as gRPC metadata. The
+// Rust service trusts this metadata — it never sees a raw JWT. This
+// matches the GrowthOS super-memory-retrieve pattern and keeps the
+// gRPC service internal-only.
+//
+// Versioning: any breaking change goes to memory.v2. Rust generates
+// via tonic-build, TS via ts-proto.
+
+syntax = "proto3";
+
+package thinkfleet.memory.v1;
+
+option go_package = "github.com/rrader26/memory-thinkfleet/proto/memory/v1;memoryv1";
+
+// ─── Service ────────────────────────────────────────────────────────
+
+service Memory {
+    // Direct save of a fully-formed memory item. Used by the TS
+    // shell when the caller already knows what it wants written
+    // (no extraction). Engine generates id + timestamps if missing.
+    rpc Save(SaveRequest) returns (MemoryItem);
+
+    // Save a raw text observation. The engine runs heuristic
+    // extraction and writes resulting MemoryItem rows. Returns the
+    // count of saved items plus the items themselves so the caller
+    // can display them or push a websocket update.
+    rpc Observe(ObserveRequest) returns (ObserveResponse);
+
+    // Search memory items by query. Implements hybrid scoring
+    // (semantic + recency + importance) inside the engine; gRPC
+    // surface is just text + filters in, ranked rows out.
+    rpc Search(SearchRequest) returns (SearchResponse);
+
+    // Find an entity in the project/platform scope by name or alias.
+    // Creates one with default_type if no match exists. Used by the
+    // graph-extraction pipeline.
+    rpc ResolveOrCreateEntity(ResolveEntityRequest) returns (Entity);
+
+    // Run the heuristic graph extractor on a text payload and wire
+    // up the resulting entities + edges. Returns extraction stats so
+    // the caller can surface "N entities, M edges" feedback.
+    rpc ExtractAndWire(ExtractAndWireRequest) returns (ExtractAndWireResponse);
+
+    // Check whether a projected cost would exceed the platform's
+    // monthly cap. Returns the current budget state; the caller
+    // emits the actual spend via RecordCost after a successful op.
+    rpc BudgetGate(BudgetGateRequest) returns (BudgetState);
+
+    // Record a cost against the platform's monthly spend. Idempotent
+    // only if the caller makes it so — usually called once per
+    // successful LLM-backed operation.
+    rpc RecordCost(RecordCostRequest) returns (BudgetState);
+
+    // Liveness probe. TS shell hits this on startup + periodically;
+    // if unreachable the shell can fail-fast or fall back per
+    // operator policy.
+    rpc Health(HealthRequest) returns (HealthResponse);
+
+    // Aggregate observability stats for an admin dashboard: memory counts by
+    // scope/status/type, vector-embedding coverage, and behavior-pattern
+    // count. Scoped by platform_id (required) + optional project_id.
+    rpc GetStats(GetStatsRequest) returns (StatsReport);
+
+    // Mine behavioral patterns from the memory corpus. Subject-
+    // agnostic: works on any subject kind (contact, user, team,
+    // workspace, service). Patterns are written back as MemoryItem
+    // rows with kind="behavior_pattern" and provenance pointing at
+    // the source memory ids — patterns ARE memories on the storage
+    // side, recallable by the same search.
+    rpc MineMemories(MineMemoriesRequest) returns (MineMemoriesResult);
+
+    // Project future events for a subject by reading their active
+    // behavior_pattern memories and extending each pattern forward
+    // by its cadence. Returns ranked predictions with confidence
+    // and source provenance.
+    rpc Predict(PredictRequest) returns (PredictResult);
+
+    // Compute a derived estimate (e.g. biological age via PhenoAge) for a
+    // subject from their lab-signal memories. Deterministic; returns a
+    // wellness-framed Score with contributors + provenance, or the list of
+    // missing required signals. Generative narration is the caller's job.
+    rpc Estimate(EstimateRequest) returns (EstimateResult);
+
+    // Collapse near-duplicate memories (cosine >= threshold): keep the
+    // strongest of each group, supersede the rest. Deterministic; no deletion.
+    // Intended to be run on a schedule by the SaaS.
+    rpc Consolidate(ConsolidateRequest) returns (ConsolidateResult);
+
+    // Generate embeddings for items that don't have one yet (the backfill
+    // work-list). generate-on-save only covers new writes; this catches up the
+    // existing corpus. No-op if the engine's embedding provider is disabled.
+    rpc Backfill(BackfillRequest) returns (BackfillResult);
+
+    // Report prediction calibration for a project: active patterns
+    // bucketed by stated confidence, with the realized hit-rate of
+    // their past predictions per bucket. Answers "of the patterns we
+    // rate ~0.8, do ~80% of their predictions actually fire?" — the
+    // signal for whether the engine's confidence is honest. Read-only;
+    // the same data the mine run logs, exposed for querying.
+    rpc GetCalibration(GetCalibrationRequest) returns (CalibrationReport);
+
+    // Build a behavioral profile snapshot for a subject. Aggregates
+    // their active patterns into a single payload: RFM segment, top
+    // entity, weekly cadence, risk indicators (churn, declining
+    // engagement). The non-temporal counterpart to Predict — answers
+    // "who is this subject?" rather than "what will they do?".
+    rpc GetProfile(GetProfileRequest) returns (Profile);
+
+    // ─── Context (the LLM-ready bundle) ─────────────────────────────
+
+    // Build a unified context bundle for a subject. Aggregates
+    // profile + active patterns + predictions + memories +
+    // observations into one token-budgeted payload. Every claim
+    // carries source ids so any inference can be traced.
+    rpc BuildContext(BuildContextRequest) returns (ContextBundle);
+
+    // ─── Events (the proactive event log) ───────────────────────────
+
+    // Append an event to the durable event log. Idempotent —
+    // re-emitting the same (projectId, dedupeKey) silently drops.
+    // The alert evaluator runs synchronously inside this call so
+    // that "event emitted" implies "rules matched and dispatched".
+    rpc EmitEvent(EmitEventRequest) returns (EmitEventResult);
+
+    // Pull events newer than `since`. Subscribers walk the log by
+    // setting `since` to the last returned event's occurredAt.
+    rpc PollEvents(PollEventsRequest) returns (PollEventsResult);
+
+    // ─── Alert rules (user-defined reactions) ───────────────────────
+
+    rpc CreateAlertRule(CreateAlertRuleRequest) returns (AlertRule);
+    rpc ListAlertRules(ListAlertRulesRequest) returns (ListAlertRulesResult);
+    rpc GetAlertRule(GetAlertRuleRequest) returns (AlertRule);
+    rpc UpdateAlertRule(UpdateAlertRuleRequest) returns (AlertRule);
+    rpc DeleteAlertRule(DeleteAlertRuleRequest) returns (DeleteAlertRuleResult);
+    rpc ListAlertFires(ListAlertFiresRequest) returns (ListAlertFiresResult);
+
+    // ─── Phase 3f Compliance (Rust) ─────────────────────────────────
+
+    // Subject-access export — GDPR Art. 15 "right of access."
+    // Returns every memory, pattern, observation, event, alert fire,
+    // and audit row that references the named subject, in a single
+    // bundle a controller can hand to the data subject.
+    rpc ExportSubject(ExportSubjectRequest) returns (SubjectExport);
+
+    // Hard-delete cascade — GDPR Art. 17 "right to erasure."
+    // Removes every artifact tied to a subject: memories, derived
+    // patterns + observations, the subject's event rows, and the
+    // alert fires referencing those events. Writes a single
+    // tombstone memory_audit_event row so the deletion itself is
+    // discoverable in the audit log.
+    rpc HardDeleteSubject(HardDeleteSubjectRequest) returns (HardDeleteSubjectResult);
+
+    // Read the memory_audit_event log. Powers the "who accessed my
+    // data and when" surface (GDPR Art. 15 + EU AI Act audit-trail
+    // requirements). Cursor-paginated.
+    rpc ListAuditEvents(ListAuditEventsRequest) returns (ListAuditEventsResult);
+
+    // Introspection — return manifests for all compliance packs
+    // loaded into the engine. The admin UI uses this to surface
+    // which regulatory frameworks the deployment satisfies.
+    rpc ListPacks(ListPacksRequest) returns (ListPacksResult);
+
+    // Phase 5 cohort similarity — find subjects whose behavior
+    // looks like the target's. Returns top-K nearest neighbors
+    // ranked by a blended similarity score (RFM + entity Jaccard
+    // + pattern-kind Jaccard).
+    rpc GetCohort(GetCohortRequest) returns (GetCohortResult);
+
+    // Phase 5 cohort-aware predictions — aggregate predictions
+    // across the target's cohort so "people like Sarah also
+    // ordered pizza on Fridays" surfaces even when Sarah's own
+    // signal is weak. Returns ranked CohortPrediction with full
+    // provenance (which cohort members + which patterns
+    // contributed).
+    rpc PredictByCohort(PredictByCohortRequest) returns (PredictByCohortResult);
+}
+
+// ─── Common ─────────────────────────────────────────────────────────
+
+enum MemoryScope {
+    SCOPE_UNSPECIFIED = 0;
+    SCOPE_PLATFORM = 1;
+    SCOPE_PROJECT = 2;
+    SCOPE_LOCATION = 3;
+    SCOPE_AGENT = 4;
+    SCOPE_USER = 5;
+    SCOPE_SESSION = 6;
+}
+
+enum MemoryStatus {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_PENDING = 1;
+    STATUS_CONFIRMED = 2;
+    STATUS_SUPERSEDED = 3;
+    STATUS_REJECTED = 4;
+}
+
+message MemoryItem {
+    string id = 1;
+    string created = 2;          // RFC3339
+    string updated = 3;          // RFC3339
+    MemoryScope scope = 4;
+    MemoryStatus status = 5;
+    string platform_id = 6;
+    optional string project_id = 7;
+    optional string user_id = 8;
+    optional string agent_id = 9;
+    optional string session_id = 10;
+    string kind = 11;            // e.g. "fact", "preference"
+    string content = 12;
+    double importance = 13;
+    string valid_from = 14;      // RFC3339
+    optional string valid_to = 15;
+    optional string last_accessed_at = 16;
+    string metadata_json = 17;   // serialized JSON
+}
+
+// ─── Save (direct write) ────────────────────────────────────────────
+
+message SaveRequest {
+    // Optional. Engine assigns a short_id if blank.
+    string id = 1;
+    // Required: where to attribute the item. May be overridden from
+    // metadata if the platform/project isn't in the body.
+    optional string platform_id = 2;
+    optional string project_id = 3;
+    optional string location_id = 4;
+    optional string agent_id = 5;
+    optional string user_id = 6;
+    optional string session_id = 7;
+    // Required content.
+    string kind = 10;         // "fact" | "preference" | "rule" | ...
+    string content = 11;
+    optional string category = 12;
+    optional double importance = 13;  // default 5.0
+    optional string source = 14;
+    // JSON-encoded metadata (the schema is opaque to the engine).
+    optional string metadata_json = 15;
+    MemoryScope scope = 20;
+    MemoryStatus status = 21;        // default STATUS_CONFIRMED
+    optional double confidence = 22; // default 1.0
+    // RFC3339 timestamps. Engine fills in `now()` defaults when blank.
+    optional string valid_from = 30;
+    optional string valid_to = 31;
+}
+
+// ─── Observe ────────────────────────────────────────────────────────
+
+message ObserveRequest {
+    string text = 1;
+    optional string role = 2;    // "user" | "assistant" | "system"
+    // Tenancy is normally injected from gRPC metadata; these fields
+    // let callers override when running in test or as service-to-
+    // service ingestion.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+    optional string user_id = 12;
+    optional string agent_id = 13;
+    optional string session_id = 14;
+}
+
+message ObserveResponse {
+    repeated MemoryItem saved = 1;
+    // How many extraction candidates were found before the budget
+    // cap / dedupe pass. saved.len() <= candidate_count.
+    uint32 candidate_count = 2;
+}
+
+// ─── Search ─────────────────────────────────────────────────────────
+
+message SearchRequest {
+    optional string text_match = 1;
+    optional MemoryScope scope = 2;
+    optional string platform_id = 3;
+    optional string project_id = 4;
+    optional string user_id = 5;
+    optional string agent_id = 6;
+    optional string session_id = 7;
+    optional string kind = 8;
+    optional MemoryStatus status = 9;
+    optional uint32 limit = 10;
+    optional uint32 offset = 11;
+    // Phase 3f min-necessary access — categories to drop from the
+    // response. Same primitive as BuildContextRequest.exclude_categories.
+    repeated string exclude_categories = 12;
+}
+
+message SearchResponse {
+    repeated MemoryItem items = 1;
+}
+
+// ─── Entities + graph ──────────────────────────────────────────────
+
+message Entity {
+    string id = 1;
+    string canonical_name = 2;
+    repeated string aliases = 3;
+    string type = 4;             // "person" | "org" | "concept" | ...
+    string platform_id = 5;
+    optional string project_id = 6;
+    MemoryScope scope = 7;
+    string created = 8;
+    string updated = 9;
+}
+
+message ResolveEntityRequest {
+    string name = 1;
+    string default_type = 2;
+    optional MemoryScope scope = 3;
+    // platform_id + project_id normally come from gRPC metadata;
+    // these are overrides for service-to-service calls.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message ExtractAndWireRequest {
+    string text = 1;
+    optional string source_memory_id = 2;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message ExtractAndWireResponse {
+    uint32 entities_resolved = 1;
+    uint32 edges_created = 2;
+}
+
+// ─── Budget ─────────────────────────────────────────────────────────
+
+message BudgetGateRequest {
+    string platform_id = 1;
+    int64 cents = 2;             // Projected spend
+}
+
+message RecordCostRequest {
+    string platform_id = 1;
+    int64 cents = 2;
+}
+
+message BudgetState {
+    string platform_id = 1;
+    string period_start = 2;     // RFC3339, calendar-month boundary
+    int64 spent_cents = 3;
+    optional int64 cap_cents = 4;
+}
+
+// ─── Health ─────────────────────────────────────────────────────────
+
+message HealthRequest {}
+
+message HealthResponse {
+    bool ok = 1;
+    string version = 2;
+}
+
+message GetStatsRequest {
+    // Tenancy normally injected from gRPC metadata; these override for
+    // service-to-service callers.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+// Admin-dashboard observability snapshot. All counts are scoped to the
+// request's platform_id (+ optional project_id).
+message StatsReport {
+    int64 total_items = 1;
+    map<string, int64> by_scope = 2;
+    map<string, int64> by_status = 3;
+    map<string, int64> by_type = 4;
+    // Vector index coverage — how much of the corpus is semantically indexed.
+    int64 items_with_embedding = 5;
+    int64 items_without_embedding = 6;
+    // Active embedding provider on this engine ("none" if semantic search is
+    // disabled) and its output dimension.
+    string embedding_model = 7;
+    uint32 embedding_dim = 8;
+    // Count of persisted behavior_pattern items (the lattice output).
+    int64 pattern_count = 9;
+}
+
+// ─── Mining ─────────────────────────────────────────────────────────
+//
+// Subject-agnostic behavioral mining. A subject is just a `(kind,
+// external_id)` pair so the same engine can mine contacts, users,
+// teams, workspaces, services, or anything else. The mining
+// algorithms read MemoryItem rows that carry a matching subject in
+// metadata and treat them as the activity stream.
+
+message Subject {
+    // Subject kind: "contact", "user", "team", "workspace", "service",
+    // "session", etc. Free-form so new kinds don't need a proto change.
+    string kind = 1;
+    // Stable external id within `kind`. Opaque to the engine.
+    string external_id = 2;
+}
+
+message MineMemoriesRequest {
+    // Restrict mining to a single subject. Omit for project-wide bulk.
+    optional Subject subject = 1;
+    // Look-back window in days. Defaults to 90; clamped to [7, 730].
+    optional uint32 window_days = 2;
+    // Force re-extraction even when a recent pattern already exists.
+    // Otherwise the engine skips subjects whose patterns were
+    // refreshed inside the last refresh-cooldown window.
+    bool force = 3;
+    // Tenancy normally injected from gRPC metadata; these fields let
+    // service-to-service callers override.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+// A persisted behavior pattern. Stored as a MemoryItem of
+// kind="behavior_pattern" with the structured fields below denormalized
+// from metadata_json for convenience. `source_memory_ids` is the
+// right-to-explanation primitive: every prediction can name the raw
+// memories that produced it.
+message BehaviorPatternRecord {
+    string id = 1;
+    Subject subject = 2;
+    // Pattern kind: "recurring_event", "day_of_week", "time_of_day",
+    // "entity_preference", "entity_bundle", "declining_engagement",
+    // "offer_responsiveness", "rfm_segment", "price_tier",
+    // "seasonal", "cart_abandonment", etc. Free-form string so new
+    // detectors don't need a proto bump.
+    string pattern_kind = 3;
+    // Human-readable summary — also the `content` of the underlying
+    // memory item (e.g. "Sarah orders every Friday at 3pm").
+    string summary = 4;
+    // Full metadata JSON. The shape per pattern_kind is documented in
+    // the engine but kept opaque at the proto layer.
+    string metadata_json = 5;
+    double confidence = 6;
+    uint32 observation_count = 7;
+    string last_observed_at = 8;          // RFC3339
+    optional string next_expected_at = 9; // RFC3339
+    bool active = 10;
+    // Provenance: ids of the MemoryItem rows that produced this
+    // pattern. Powers GDPR Art. 22 explanation requests and the
+    // deletion-cascade hook (deleting a source memory deactivates
+    // any patterns derived from it).
+    repeated string source_memory_ids = 11;
+    string created = 12;                  // RFC3339
+    string updated = 13;                  // RFC3339
+}
+
+message MineMemoriesResult {
+    uint32 subjects_processed = 1;
+    uint32 patterns_created = 2;
+    uint32 patterns_refreshed = 3;
+    uint32 patterns_deactivated = 4;
+    uint64 duration_ms = 5;
+    // The patterns produced or refreshed during this run. May be
+    // truncated for very large bulk runs — see `subjects_processed`
+    // for the true totals.
+    repeated BehaviorPatternRecord patterns = 6;
+}
+
+// ─── Predict ────────────────────────────────────────────────────────
+
+message PredictRequest {
+    // Subject to project predictions for.
+    Subject subject = 1;
+    // How far forward to project (in days). Default 30, clamped [1, 365].
+    optional uint32 horizon_days = 2;
+    // Max predictions to return. Default 20, max 200.
+    optional uint32 limit = 3;
+    // Minimum confidence (0..1). Predictions below this are dropped.
+    // Default 0.5.
+    optional double min_confidence = 4;
+    // How many future occurrences to project per pattern within the
+    // horizon. 1 (default) = just the next firing. Higher values yield a
+    // forward view ("the next N firings"), each occurrence carrying its
+    // own horizon-decayed confidence — later firings are less certain.
+    // Only patterns with a fixed cadence can project past the first.
+    optional uint32 occurrences_per_pattern = 5;
+    // Tenancy override; normally injected from gRPC metadata.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+    // When true, emit a `prediction.imminent` event for each prediction due
+    // within `imminent_within_hours` — the predictions→events bridge that lets
+    // the commerce side act on behavior (campaigns, nudges). Per-day dedupe
+    // means a daily run won't double-fire. Default false.
+    bool emit_events = 12;
+    // Imminence window for event emission, in hours. Default 48, clamped
+    // [1, 720]. Only used when emit_events is true.
+    optional uint32 imminent_within_hours = 13;
+}
+
+// One projected event the engine expects based on the subject's
+// active patterns. `pattern_id` is the behavior_pattern memory id
+// that produced it — the caller can fetch its full provenance via
+// the right-to-explanation API.
+message PredictedEvent {
+    string pattern_id = 1;
+    // Kind of pattern that drove this prediction (e.g. "recurring_event").
+    string pattern_kind = 2;
+    // Human-readable description. Mirrors the pattern's summary by
+    // default — engines may produce richer text in follow-ups.
+    string description = 3;
+    // ISO timestamp the event is expected at.
+    string expected_at = 4;
+    // 0..1 confidence inherited from the pattern's dominance score.
+    double confidence = 5;
+    // Tolerance window in minutes (cadence-dependent — daily patterns
+    // get hours of slack, monthly patterns get days).
+    uint32 window_minutes = 6;
+    // Provenance: ids of the raw memories that produced the pattern
+    // (and therefore this prediction). Powers the right-to-
+    // explanation API.
+    repeated string source_memory_ids = 7;
+}
+
+message PredictResult {
+    Subject subject = 1;
+    repeated PredictedEvent predictions = 2;
+    // Total active patterns considered (whether or not each produced
+    // a prediction inside the horizon).
+    uint32 active_pattern_count = 3;
+    // ISO timestamp the prediction was generated at.
+    string generated_at = 4;
+    uint64 duration_ms = 5;
+    // Number of `prediction.imminent` events emitted this call (0 unless
+    // emit_events was set; dedupe may make it less than the imminent count).
+    uint32 events_emitted = 6;
+}
+
+message EstimateRequest {
+    Subject subject = 1;
+    // Which estimator to run. v1: "phenoage".
+    string estimator_id = 2;
+    // Persist the score as a memory (kind="estimate") so it builds a trajectory
+    // and feeds the calibration loop. Default false (compute-only).
+    bool persist = 3;
+    // Tenancy normally injected from gRPC metadata; override for s2s callers.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message ScoreContributor {
+    string signal = 1;
+    // Signed contribution to the score (positive pushed it up).
+    double contribution = 2;
+}
+
+message EstimateResult {
+    Subject subject = 1;
+    string estimator_id = 2;
+    // True when every required signal was present and a score was produced.
+    bool ok = 3;
+    double value = 4;
+    string unit = 5;
+    repeated ScoreContributor contributors = 6;
+    double confidence = 7;
+    repeated string provenance = 8;
+    // Always set: "estimate" + a not-a-diagnosis disclaimer.
+    string framing = 9;
+    string disclaimer = 10;
+    // Required signals with no reading, when ok=false.
+    repeated string missing_signals = 11;
+}
+
+message ConsolidateRequest {
+    // Cosine threshold for "same memory". Default 0.92.
+    optional double threshold = 1;
+    // Max items to scan this pass. Default 1000, clamped [1, 10000].
+    optional uint32 scan_limit = 2;
+    // Tenancy override; normally injected from gRPC metadata.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message ConsolidateResult {
+    uint32 scanned = 1;
+    uint32 groups = 2;
+    uint32 superseded = 3;
+}
+
+message BackfillRequest {
+    // Max items to embed this call. Default 500, clamped [1, 10000]. Call
+    // repeatedly until embedded == 0 to drain a large corpus.
+    optional uint32 batch = 1;
+    // Tenancy override; normally injected from gRPC metadata.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message BackfillResult {
+    uint32 embedded = 1;
+}
+
+// ─── Calibration ────────────────────────────────────────────────────
+
+message GetCalibrationRequest {
+    optional string project_id = 1;
+    optional string platform_id = 2;
+    // Number of equal-width confidence buckets over [0,1]. Defaults to
+    // 5; clamped to [1, 20].
+    optional uint32 bucket_count = 3;
+}
+
+message CalibrationBucket {
+    double lower = 1;
+    double upper = 2;
+    // Active patterns whose stated confidence falls in this band.
+    uint32 patterns = 3;
+    // Predictions from those patterns that have been scored (hits+misses).
+    uint32 predictions = 4;
+    uint32 hits = 5;
+    uint32 misses = 6;
+    // hits / predictions; only meaningful when has_data is true.
+    double realized_hit_rate = 7;
+    // False when no prediction in this band has been scored yet.
+    bool has_data = 8;
+}
+
+message CalibrationReport {
+    repeated CalibrationBucket buckets = 1;
+    // Totals across all buckets.
+    uint32 total_patterns = 2;
+    uint32 total_predictions = 3;
+}
+
+// ─── Profile ────────────────────────────────────────────────────────
+
+message GetProfileRequest {
+    Subject subject = 1;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+// One risk signal active for the subject (declining_engagement,
+// cant_lose_them RFM segment, long silence after a recurring cadence...).
+message RiskIndicator {
+    // Stable identifier: "declining_engagement", "rfm_cant_lose_them",
+    // "cadence_missed", etc.
+    string kind = 1;
+    // Free-text explanation for the human dashboard.
+    string description = 2;
+    // 0..1 — how strongly the signal is firing.
+    double severity = 3;
+    // Pattern memory id that produced the signal (for provenance).
+    string source_pattern_id = 4;
+}
+
+// Behavioral profile snapshot. The non-temporal "who is this
+// subject" view, aggregated from their active behavior patterns.
+message Profile {
+    Subject subject = 1;
+    // RFM segment label when an rfm_segment pattern is active.
+    optional string rfm_segment = 2;
+    optional uint32 recency_score = 3;
+    optional uint32 frequency_score = 4;
+    optional uint32 monetary_score = 5;
+    // Subject's dominant entity (from entity_preference). Empty when
+    // no preference pattern is active.
+    optional string top_entity = 6;
+    // Cadence summary when a temporal pattern is active.
+    // "weekly", "every 14 days", "Fridays at 19:00", etc.
+    optional string cadence_summary = 7;
+    // Active risk signals — agents should surface these before
+    // proceeding with non-trivial actions.
+    repeated RiskIndicator risks = 8;
+    // Ids of every active pattern that fed this profile (provenance).
+    repeated string contributing_pattern_ids = 9;
+    string generated_at = 10;
+    uint64 duration_ms = 11;
+}
+
+// ─── Context bundle ─────────────────────────────────────────────────
+
+message BuildContextRequest {
+    Subject subject = 1;
+    // Which sections to include. Empty = all five.
+    repeated string include = 2;
+    // Hard cap on bundle size. Sections truncate to fit. Default 2000.
+    optional uint32 max_tokens = 3;
+    optional uint32 memory_limit = 4;
+    optional uint32 prediction_limit = 5;
+    // Phase 3f min-necessary access — categories to drop from the
+    // bundle. Used to keep medical / HR / PII memories out of
+    // sales-context queries against the same project.
+    repeated string exclude_categories = 6;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message ContextProfileSummary {
+    optional string rfm_segment = 1;
+    optional uint32 recency_score = 2;
+    optional uint32 frequency_score = 3;
+    optional uint32 monetary_score = 4;
+    optional string top_entity = 5;
+    optional string cadence_summary = 6;
+    repeated RiskIndicator risks = 7;
+}
+
+message ContextPattern {
+    string id = 1;
+    string pattern_kind = 2;
+    string summary = 3;
+    double confidence = 4;
+    optional string next_expected_at = 5;
+}
+
+message ContextMemoryRow {
+    string id = 1;
+    string type = 2;
+    string content = 3;
+    double importance = 4;
+    string created = 5;
+}
+
+message ContextObservationRow {
+    string id = 1;
+    string content = 2;
+    uint32 proof_count = 3;
+    repeated string source_memory_ids = 4;
+    string created = 5;
+}
+
+message ContextProvenance {
+    repeated string memory_ids = 1;
+    repeated string pattern_ids = 2;
+    repeated string observation_ids = 3;
+}
+
+message ContextBundle {
+    Subject subject = 1;
+    optional ContextProfileSummary profile = 2;
+    repeated ContextPattern patterns = 3;
+    repeated PredictedEvent predictions = 4;
+    repeated ContextMemoryRow memories = 5;
+    repeated ContextObservationRow observations = 6;
+    ContextProvenance provenance = 7;
+    uint32 tokens_estimate = 8;
+    // Sections that were dropped or truncated to fit the budget.
+    repeated string truncated = 9;
+    string generated_at = 10;
+    uint64 duration_ms = 11;
+    // Ground-truth authority directive: place at the top of the prompt so the
+    // model treats this memory as already-known and doesn't re-derive it.
+    string guidance = 12;
+}
+
+// ─── Events ─────────────────────────────────────────────────────────
+
+message MemoryEventRecord {
+    string id = 1;
+    string event_type = 2;
+    optional Subject subject = 3;
+    string severity = 4;             // "info" | "warn" | "critical"
+    string payload_json = 5;          // free-form JSON
+    repeated string source_memory_ids = 6;
+    optional string source_pattern_id = 7;
+    optional string emitted_by_pack = 8;
+    string occurred_at = 9;
+}
+
+message EmitEventRequest {
+    string event_type = 1;
+    optional Subject subject = 2;
+    // info | warn | critical. Defaults to "info" when blank.
+    string severity = 3;
+    string payload_json = 4;
+    repeated string source_memory_ids = 5;
+    optional string source_pattern_id = 6;
+    optional string emitted_by_pack = 7;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message EmitEventResult {
+    // Empty when the dedupe collision suppressed the insert.
+    optional MemoryEventRecord event = 1;
+    // Number of alert rules that matched + dispatched. The TS shell
+    // can surface this in a 'X-Alert-Dispatches' header.
+    uint32 alert_dispatches = 2;
+}
+
+message PollEventsRequest {
+    optional string since_iso = 1;
+    optional uint32 limit = 2;
+    repeated string event_types = 3;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message PollEventsResult {
+    repeated MemoryEventRecord events = 1;
+}
+
+// ─── Alert rules ────────────────────────────────────────────────────
+
+message AlertRule {
+    string id = 1;
+    string project_id = 2;
+    string name = 3;
+    optional string description = 4;
+    bool enabled = 5;
+    // Free-form JSON to keep proto stable as triggers evolve.
+    string trigger_json = 6;
+    optional string filter_json = 7;
+    string notify_json = 8;
+    optional string throttle_json = 9;
+    string created = 10;
+    string updated = 11;
+}
+
+message CreateAlertRuleRequest {
+    string name = 1;
+    optional string description = 2;
+    optional bool enabled = 3;
+    string trigger_json = 4;
+    optional string filter_json = 5;
+    string notify_json = 6;
+    optional string throttle_json = 7;
+    optional string created_by_user_id = 8;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message ListAlertRulesRequest {
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message ListAlertRulesResult {
+    repeated AlertRule rules = 1;
+}
+
+message GetAlertRuleRequest {
+    string alert_rule_id = 1;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message UpdateAlertRuleRequest {
+    string alert_rule_id = 1;
+    optional string name = 2;
+    optional string description = 3;
+    optional bool enabled = 4;
+    optional string trigger_json = 5;
+    // Pass empty string to clear; absent = no-op.
+    optional string filter_json = 6;
+    optional string notify_json = 7;
+    optional string throttle_json = 8;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message DeleteAlertRuleRequest {
+    string alert_rule_id = 1;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message DeleteAlertRuleResult {
+    bool deleted = 1;
+}
+
+message AlertFire {
+    string id = 1;
+    string alert_rule_id = 2;
+    optional string event_id = 3;
+    string dedupe_key = 4;
+    // JSON array of { channel, ok, error? }.
+    string delivery_results_json = 5;
+    string fired_at = 6;
+}
+
+message ListAlertFiresRequest {
+    string alert_rule_id = 1;
+    optional uint32 limit = 2;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message ListAlertFiresResult {
+    repeated AlertFire fires = 1;
+}
+
+// ─── Compliance ─────────────────────────────────────────────────────
+
+message ExportSubjectRequest {
+    Subject subject = 1;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+// JSON-serialized bundles so downstream tooling can serialize without
+// needing to know every memory type. Stable shape: top-level keys are
+// memories[], patterns[], observations[], events[], alert_fires[].
+message SubjectExport {
+    Subject subject = 1;
+    string export_json = 2;          // full bundle as JSON
+    uint32 memory_count = 3;
+    uint32 pattern_count = 4;
+    uint32 observation_count = 5;
+    uint32 event_count = 6;
+    uint32 alert_fire_count = 7;
+    string generated_at = 8;
+    uint64 duration_ms = 9;
+}
+
+message HardDeleteSubjectRequest {
+    Subject subject = 1;
+    // Free-text reason kept on the tombstone audit row. Required —
+    // GDPR Art. 17 requests should carry a reference (case id, etc.).
+    string reason = 2;
+    // When true, the engine returns a dry-run preview (counts only,
+    // no rows touched). Default false.
+    bool dry_run = 3;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message HardDeleteSubjectResult {
+    Subject subject = 1;
+    uint32 memories_deleted = 2;
+    uint32 patterns_deleted = 3;
+    uint32 observations_deleted = 4;
+    uint32 events_deleted = 5;
+    uint32 alert_fires_deleted = 6;
+    bool dry_run = 7;
+    optional string audit_event_id = 8;
+    string generated_at = 9;
+    uint64 duration_ms = 10;
+}
+
+// ─── Audit log read ────────────────────────────────────────────────
+
+message ListAuditEventsRequest {
+    // Restrict to events touching this subject. Matches against
+    // both the structured subject metadata and the `query` column.
+    optional Subject subject = 1;
+    optional string actor = 2;
+    // Event types to include. Empty = all.
+    repeated string event_types = 3;
+    optional string since_iso = 4;
+    optional uint32 limit = 5;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message AuditEventRecord {
+    string id = 1;
+    string created = 2;          // RFC3339
+    string actor = 3;
+    string event_type = 4;
+    optional string query = 5;
+    optional string memory_ids = 6;
+    uint32 result_count = 7;
+    string metadata_json = 8;
+}
+
+message ListAuditEventsResult {
+    repeated AuditEventRecord events = 1;
+}
+
+// ─── Pack introspection ────────────────────────────────────────────
+
+message ListPacksRequest {
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message PackManifest {
+    string id = 1;
+    string version = 2;
+    string description = 3;
+    repeated string owns_classes = 4;
+    repeated string regulatory_tags = 5;
+}
+
+message ListPacksResult {
+    repeated PackManifest packs = 1;
+}
+
+// ─── Phase 5 cohort similarity ─────────────────────────────────────
+
+message GetCohortRequest {
+    Subject subject = 1;
+    // How many nearest neighbors to return. Server clamps to [1, 50].
+    uint32 k = 2;
+    // Minimum similarity score (0.0..1.0) to include a member.
+    // 0 = no cutoff (returns top-K regardless).
+    double min_similarity = 3;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message CohortMember {
+    Subject subject = 1;
+    double similarity = 2;
+    // RFM segment label of the cohort member (e.g. "loyal_customer").
+    // Lets the admin UI annotate the cohort list without a second
+    // GetProfile round-trip per member.
+    string rfm_segment = 3;
+    // Pattern kinds active on this member — surfaces "Mike has the
+    // same recurring_event + entity_preference as Sarah" annotation.
+    repeated string pattern_kinds = 4;
+}
+
+message GetCohortResult {
+    Subject target = 1;
+    repeated CohortMember members = 2;
+    // How many candidate subjects we scored before truncating to k.
+    uint32 candidate_count = 3;
+    string generated_at = 4;
+    uint64 duration_ms = 5;
+}
+
+message PredictByCohortRequest {
+    Subject subject = 1;
+    // Cohort size. Same clamping as GetCohort.
+    uint32 cohort_k = 2;
+    // Max predictions to return.
+    uint32 prediction_limit = 3;
+    // Pass-through to GetCohort.
+    double min_similarity = 4;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message CohortPrediction {
+    string pattern_kind = 1;
+    string description = 2;
+    string expected_at = 3;
+    double confidence = 4;
+    uint32 window_minutes = 5;
+    repeated Subject supporting_subjects = 6;
+    repeated string source_memory_ids = 7;
+}
+
+message PredictByCohortResult {
+    Subject target = 1;
+    repeated CohortMember cohort = 2;
+    repeated CohortPrediction predictions = 3;
+    string generated_at = 4;
+    uint64 duration_ms = 5;
+}
