@@ -4,6 +4,7 @@ import { AlertsResource } from './resources/alerts.js'
 import { ComplianceResource } from './resources/compliance.js'
 import { ContextResource } from './resources/context.js'
 import { EventsResource } from './resources/events.js'
+import { HealthResource } from './resources/health.js'
 import { LatticeResource } from './resources/lattice.js'
 import { MemoryResource } from './resources/memory.js'
 
@@ -54,6 +55,7 @@ export class ThinkFleetMemory {
   readonly events: EventsResource
   readonly alerts: AlertsResource
   readonly compliance: ComplianceResource
+  readonly health: HealthResource
 
   constructor(options: ThinkFleetMemoryOptions) {
     if (!options.apiKey) {
@@ -80,5 +82,6 @@ export class ThinkFleetMemory {
     this.events = new EventsResource(http)
     this.alerts = new AlertsResource(http)
     this.compliance = new ComplianceResource(http)
+    this.health = new HealthResource(http)
   }
 }
