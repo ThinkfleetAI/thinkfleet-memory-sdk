@@ -236,6 +236,52 @@ export interface PredictRequest {
   emitEvents?: boolean
   /** Imminence window for event emission, in hours. Default 48, clamped [1, 720]. */
   imminentWithinHours?: number
+  /**
+   * v2 general prediction. When set, the engine predicts THIS declared target
+   * from the subject's observation history instead of projecting mined behavior
+   * patterns — "predict anything", not the canned menu. The result arrives in
+   * `PredictResult.targetPrediction` (with first-class abstention). When unset,
+   * `predict()` behaves exactly as before (pattern projection).
+   */
+  target?: PredictionTarget
+}
+
+/** Target kinds the v2 engine can predict. The kind drives model selection. */
+export type TargetKind = 'event_occurrence' | 'numeric' | 'event_time' | 'anomaly'
+
+/**
+ * A declaratively-specified prediction target (v2). You declare *what* to
+ * predict; the engine selects the model family from `kind`. Callers never pick
+ * a model.
+ *
+ * @example
+ * ```ts
+ * // Will this customer reorder in the next 30 days?
+ * { kind: 'event_occurrence', eventType: 'order_placed' }
+ * // What will their next order total be?
+ * { kind: 'numeric', attributeKey: 'order_total' }
+ * // When is their next visit expected?
+ * { kind: 'event_time', eventType: 'visit' }
+ * // Is their latest reading an outlier?
+ * { kind: 'anomaly', attributeKey: 'resting_hr' }
+ * ```
+ */
+export interface PredictionTarget {
+  /** Target type — drives model selection. */
+  kind: TargetKind
+  /**
+   * For event_occurrence / event_time: the activity event to predict. Matched
+   * against an observation's eventType, then category, then content substring.
+   * Empty = "any activity".
+   */
+  eventType?: string
+  /**
+   * For numeric / anomaly: the typed-observation attribute to predict (e.g.
+   * "order_total"). Required for those kinds; ignored otherwise.
+   */
+  attributeKey?: string
+  /** How many days of history to learn from. Default 365, clamped [1, 3650]. */
+  lookbackDays?: number
 }
 
 /** One projected event derived from one active behavior pattern. */
@@ -248,10 +294,52 @@ export interface PredictedEvent {
   expectedAt: string
   /** 0..1 confidence inherited from the pattern's dominance score. */
   confidence: number
+  /** Calibrated 95% interval around `confidence` (Wilson score). */
+  confidenceLower?: number
+  confidenceUpper?: number
   /** Tolerance window in minutes. */
   windowMinutes: number
   /** Provenance — raw memories that produced the source pattern. */
   sourceMemoryIds: string[]
+}
+
+/**
+ * The single calibrated estimate for a declared `target`. Exactly one field
+ * group is meaningful per `targetKind`:
+ *  - event_occurrence → `probability` (+ lower/upper)
+ *  - numeric          → `value` (+ lower/upper)
+ *  - event_time       → `expectedAt` (+ lower/upper, `daysUntil`)
+ *  - anomaly          → `anomalyScore` / `isAnomaly` (value = latest reading)
+ *
+ * Always check `abstained` first: when true, the engine declined to guess —
+ * treat it as "unknown", never as "no/low risk".
+ */
+export interface TargetPrediction {
+  targetKind: TargetKind | string
+  eventType: string
+  /** event_occurrence: P(event within horizon), calibrated. */
+  probability: number
+  probabilityLower: number
+  probabilityUpper: number
+  /** numeric: predicted next value + 95% interval. */
+  value: number
+  valueLower: number
+  valueUpper: number
+  /** event_time: when the next occurrence is expected (ISO-8601) + interval. */
+  expectedAt: string
+  expectedAtLower: string
+  expectedAtUpper: string
+  daysUntil: number
+  /** anomaly: |z| from baseline, and whether it crosses the threshold. */
+  anomalyScore: number
+  isAnomaly: boolean
+  /** First-class abstention — true when there isn't enough signal to estimate. */
+  abstained: boolean
+  abstentionReason: string
+  /** Human-readable derivation (counts, rate, horizon) for explainability. */
+  explanation: string
+  /** Provenance: ids of the observations the estimate was derived from. */
+  evidenceMemoryIds: string[]
 }
 
 export interface PredictResult {
@@ -264,6 +352,20 @@ export interface PredictResult {
   /** ISO timestamp the prediction was generated. */
   generatedAt: string
   durationMs: number
+  /**
+   * First-class abstention: true when the engine declines to predict because
+   * there isn't enough signal. Callers MUST treat an abstention as "unknown",
+   * never as "no/low risk" — this is what keeps the engine safe for regulated
+   * use.
+   */
+  abstained?: boolean
+  /** Machine-readable reason when `abstained` is true (empty otherwise). */
+  abstentionReason?: string
+  /**
+   * Set instead of `predictions` when the request carried a declarative
+   * `target`: the single calibrated estimate for that target.
+   */
+  targetPrediction?: TargetPrediction | null
 }
 
 // ── Profile ──────────────────────────────────────────────────────
