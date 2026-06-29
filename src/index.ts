@@ -70,6 +70,24 @@ export type {
   ConsentStatus,
 } from './resources/consent.js'
 export { LatticeResource } from './resources/lattice.js'
+export { HealthResource } from './resources/health.js'
+
+// Types — health
+export type {
+  Biomarker,
+  Sex,
+  ActivityLevel,
+  ConditionStatus,
+  DemographicsInput,
+  ConditionInput,
+  HealthAgeComponent,
+  BiologicalAge,
+  PredictedHealthCondition,
+  BiomarkerReading,
+  HealthProfile,
+  CohortConditionRisk,
+  CohortHealthRisk,
+} from './types/health.js'
 
 // Types — common
 export type { BaseModel } from './types/common.js'
