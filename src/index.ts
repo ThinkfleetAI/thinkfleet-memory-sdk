@@ -42,6 +42,20 @@ export type {
   PollEventsParams,
 } from './resources/events.js'
 
+export { TypedAttributesResource } from './resources/typed.js'
+export type {
+  AttributeDataType,
+  ObservationStatus,
+  AttributeDef,
+  RegisterAttributeRequest,
+  TypedObservationInput,
+  TypedObservation,
+  IngestReport,
+  Accumulator,
+  QueryObservationsParams,
+  AccumulatorParams,
+} from './resources/typed.js'
+
 export { ComplianceResource } from './resources/compliance.js'
 export type {
   ComplianceSubject,
@@ -71,6 +85,29 @@ export type {
 } from './resources/consent.js'
 export { LatticeResource } from './resources/lattice.js'
 export { HealthResource } from './resources/health.js'
+export { FinancialResource } from './resources/financial.js'
+
+// Types — financial
+export type {
+  PriceInput,
+  FundamentalInput,
+  HoldingInput,
+  NewsInput,
+  TechnicalIndicators,
+  FundamentalSnapshot,
+  PortfolioPosition,
+  AssetAllocation,
+  PortfolioRisk,
+  FinancialProfile,
+  Direction,
+  FinancialSignal,
+  PredictFinancialResult,
+  ReconcileFinancialResult,
+  FinancialCalibrationBucket,
+  FinancialCalibrationReport,
+  PredictOptions,
+  CalibrationOptions,
+} from './types/financial.js'
 
 // Types — health
 export type {
@@ -146,6 +183,9 @@ export type {
   PredictRequest,
   PredictedEvent,
   PredictResult,
+  TargetKind,
+  PredictionTarget,
+  TargetPrediction,
   SubjectProfile,
   RiskIndicator,
 } from './types/lattice.js'
