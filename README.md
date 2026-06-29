@@ -133,6 +133,44 @@ const tf = new ThinkFleetMemory({
 
 ---
 
+## Predict anything (v2)
+
+Don't pick a model. Declare *what* to predict — a churn event, a next-order
+amount, a next-visit time, an anomaly — and the engine predicts it from the
+subject's history, **calibrated, with provenance, and abstaining when there
+isn't enough signal**.
+
+```ts
+const p = await tf.lattice.predictTarget(
+  { kind: 'customer', externalId: 'acct-42' },
+  { kind: 'event_occurrence', eventType: 'subscription_cancelled' },
+  { horizonDays: 90 },
+)
+
+if (p.abstained) {
+  // The whole trust story: "unknown" is a first-class answer. Never treat an
+  // abstention as low risk.
+  console.log('not enough signal —', p.abstentionReason)
+} else {
+  console.log(`churn risk ${(p.probability * 100).toFixed(0)}% `
+    + `[${(p.probabilityLower * 100).toFixed(0)}–${(p.probabilityUpper * 100).toFixed(0)}%]`)
+  console.log('why:', p.explanation, '| evidence:', p.evidenceMemoryIds)
+}
+```
+
+`target.kind` is one of `event_occurrence` | `numeric` | `event_time` |
+`anomaly`, and the kind selects the result fields (`probability*` / `value*` /
+`expectedAt*` / `anomalyScore`). A target is just a question — adding a row to
+your registry adds a prediction, with no SDK or engine change. That's how a
+whole vertical (Shopify churn, health risk, fraud) is one registry over one
+engine.
+
+See [`examples/predict-anything.ts`](examples/predict-anything.ts) for all four
+kinds end-to-end. The lower-level `tf.lattice.predict({ subject, target })`
+returns the full `PredictResult` (`targetPrediction` + top-level `abstained`).
+
+---
+
 ## Memory scopes
 
 ```ts

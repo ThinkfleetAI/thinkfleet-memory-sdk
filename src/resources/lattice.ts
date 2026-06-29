@@ -13,6 +13,8 @@ import type {
   MonitorTickResult,
   PredictRequest,
   PredictResult,
+  PredictionTarget,
+  TargetPrediction,
   EstimateRequest,
   EstimateResult,
   CalibrationReport,
@@ -163,13 +165,22 @@ export class LatticeResource {
   }
 
   /**
-   * Project future events for a subject based on their active
-   * behavior patterns. Each prediction names the pattern that drove
-   * it and the raw memories that produced the pattern (provenance)
-   * so callers can explain or audit any single prediction.
+   * Predict for a subject. Two modes:
+   *
+   *  1. **Pattern projection (default).** Omit `target` to project the
+   *     subject's active behavior patterns forward — each prediction names the
+   *     pattern that drove it and the raw memories behind it (provenance).
+   *  2. **Declared target (v2 general prediction).** Pass a `target` to predict
+   *     *anything* — a churn event, a next-order amount, a next-visit time, an
+   *     anomaly — straight from the subject's observation history, no pre-mined
+   *     pattern required. The estimate arrives in `result.targetPrediction`
+   *     with a calibrated interval and first-class abstention.
+   *
+   * For the declared-target case, prefer the typed {@link predictTarget} helper.
    *
    * @example
    * ```ts
+   * // 1. pattern projection
    * const result = await tf.lattice.predict({
    *   subject: { kind: 'contact', externalId: 'sarah-pizza' },
    *   horizonDays: 30,
@@ -177,6 +188,14 @@ export class LatticeResource {
    * for (const p of result.predictions) {
    *   console.log(`${p.expectedAt}: ${p.description} (conf ${p.confidence.toFixed(2)})`)
    * }
+   *
+   * // 2. declared target
+   * const churn = await tf.lattice.predict({
+   *   subject: { kind: 'contact', externalId: 'sarah-pizza' },
+   *   horizonDays: 90,
+   *   target: { kind: 'event_occurrence', eventType: 'order_placed' },
+   * })
+   * console.log(churn.targetPrediction?.probability, churn.abstained)
    * ```
    */
   async predict(
@@ -184,6 +203,69 @@ export class LatticeResource {
     options?: RequestOptions,
   ): Promise<PredictResult> {
     return this.http.post<PredictResult>('/lattice/predict', body, options)
+  }
+
+  /**
+   * v2 general prediction, typed and ergonomic: declare *what* to predict and
+   * get back the single calibrated {@link TargetPrediction} (or an abstention).
+   * Thin wrapper over {@link predict} with a `target`.
+   *
+   * Always check `.abstained` before reading a value — an abstention means
+   * "not enough signal", which you must treat as *unknown*, never as low risk.
+   *
+   * @example
+   * ```ts
+   * const p = await tf.lattice.predictTarget(
+   *   { kind: 'customer', externalId: 'acct-42' },
+   *   { kind: 'event_occurrence', eventType: 'subscription_cancelled' },
+   *   { horizonDays: 90 },
+   * )
+   * if (p.abstained) {
+   *   console.log('unknown —', p.abstentionReason)
+   * } else {
+   *   console.log(`churn risk ${(p.probability * 100).toFixed(0)}% `
+   *     + `[${(p.probabilityLower * 100).toFixed(0)}–${(p.probabilityUpper * 100).toFixed(0)}%]`)
+   *   console.log('because:', p.explanation, '| evidence:', p.evidenceMemoryIds)
+   * }
+   * ```
+   *
+   * @returns the `targetPrediction`. If the engine returns none (it always
+   *   does in target mode), a synthetic abstention is returned so callers never
+   *   have to null-check.
+   */
+  async predictTarget(
+    subject: Subject,
+    target: PredictionTarget,
+    params?: { horizonDays?: number },
+    options?: RequestOptions,
+  ): Promise<TargetPrediction> {
+    const result = await this.predict(
+      { subject, target, horizonDays: params?.horizonDays },
+      options,
+    )
+    return (
+      result.targetPrediction ?? {
+        targetKind: target.kind,
+        eventType: target.eventType ?? target.attributeKey ?? '',
+        probability: 0,
+        probabilityLower: 0,
+        probabilityUpper: 0,
+        value: 0,
+        valueLower: 0,
+        valueUpper: 0,
+        expectedAt: '',
+        expectedAtLower: '',
+        expectedAtUpper: '',
+        daysUntil: 0,
+        anomalyScore: 0,
+        isAnomaly: false,
+        abstained: true,
+        abstentionReason:
+          result.abstentionReason || 'insufficient_signal: engine returned no target estimate',
+        explanation: '',
+        evidenceMemoryIds: [],
+      }
+    )
   }
 
   /**
