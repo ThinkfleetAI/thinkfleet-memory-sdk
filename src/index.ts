@@ -84,6 +84,12 @@ export type {
   ConsentStatus,
 } from './resources/consent.js'
 export { LatticeResource } from './resources/lattice.js'
+export { BehaviorsResource } from './resources/behaviors.js'
+export type {
+  DiscoverParams,
+  DiscoveredBehavior,
+  DiscoverResult,
+} from './resources/behaviors.js'
 export { HealthResource } from './resources/health.js'
 export { FinancialResource } from './resources/financial.js'
 
