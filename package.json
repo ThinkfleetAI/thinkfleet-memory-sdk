@@ -30,7 +30,8 @@
     "check:proto": "node scripts/check-proto-drift.mjs",
     "test:integration": "tsx test-app.ts",
     "seed": "tsx scripts/seed-memory.ts",
-    "seed:lattice": "tsx scripts/seed-lattice.ts"
+    "seed:lattice": "tsx scripts/seed-lattice.ts",
+    "demo:financial": "tsx examples/financial-demo.ts"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

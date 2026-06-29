@@ -4,9 +4,11 @@ import { AlertsResource } from './resources/alerts.js'
 import { ComplianceResource } from './resources/compliance.js'
 import { ContextResource } from './resources/context.js'
 import { EventsResource } from './resources/events.js'
+import { FinancialResource } from './resources/financial.js'
 import { HealthResource } from './resources/health.js'
 import { LatticeResource } from './resources/lattice.js'
 import { MemoryResource } from './resources/memory.js'
+import { TypedAttributesResource } from './resources/typed.js'
 
 export interface ThinkFleetMemoryOptions {
   /** API key (`sk-...`) from Platform Admin → API Keys. */
@@ -56,6 +58,8 @@ export class ThinkFleetMemory {
   readonly alerts: AlertsResource
   readonly compliance: ComplianceResource
   readonly health: HealthResource
+  readonly financial: FinancialResource
+  readonly typed: TypedAttributesResource
 
   constructor(options: ThinkFleetMemoryOptions) {
     if (!options.apiKey) {
@@ -83,5 +87,7 @@ export class ThinkFleetMemory {
     this.alerts = new AlertsResource(http)
     this.compliance = new ComplianceResource(http)
     this.health = new HealthResource(http)
+    this.financial = new FinancialResource(http)
+    this.typed = new TypedAttributesResource(http)
   }
 }
