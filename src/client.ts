@@ -8,6 +8,7 @@ import { EventsResource } from './resources/events.js'
 import { FinancialResource } from './resources/financial.js'
 import { HealthResource } from './resources/health.js'
 import { LatticeResource } from './resources/lattice.js'
+import { LearningResource } from './resources/learning.js'
 import { MemoryResource } from './resources/memory.js'
 import { TypedAttributesResource } from './resources/typed.js'
 
@@ -54,6 +55,7 @@ export interface ThinkFleetMemoryOptions {
 export class ThinkFleetMemory {
   readonly memory: MemoryResource
   readonly lattice: LatticeResource
+  readonly learning: LearningResource
   readonly behaviors: BehaviorsResource
   readonly context: ContextResource
   readonly events: EventsResource
@@ -84,6 +86,7 @@ export class ThinkFleetMemory {
 
     this.memory = new MemoryResource(http)
     this.lattice = new LatticeResource(http)
+    this.learning = new LearningResource(http)
     this.behaviors = new BehaviorsResource(http)
     this.context = new ContextResource(http)
     this.events = new EventsResource(http)

@@ -90,6 +90,21 @@ export type {
   DiscoveredBehavior,
   DiscoverResult,
 } from './resources/behaviors.js'
+export { LearningResource } from './resources/learning.js'
+export type {
+  ProvenanceRef,
+  RecordDecisionInput,
+  DecisionRecord,
+  RecordDecisionResult,
+  RecordOutcomeInput,
+  CalibrationUpdate,
+  RecordOutcomeResult,
+  OutcomeRecord,
+  GetOutcomesParams,
+  EffectivenessGroupBy,
+  GetEffectivenessParams,
+  EffectivenessRow,
+} from './resources/learning.js'
 export { HealthResource } from './resources/health.js'
 export { FinancialResource } from './resources/financial.js'
 

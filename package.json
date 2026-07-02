@@ -1,6 +1,6 @@
 {
   "name": "@thinkfleet/memory-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript SDK for memory.thinkfleet.ai — admin + project memory CRUD, semantic search, feedback, and Lattice behavioral patterns",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -31,13 +31,16 @@
     "test:integration": "tsx test-app.ts",
     "seed": "tsx scripts/seed-memory.ts",
     "seed:lattice": "tsx scripts/seed-lattice.ts",
-    "demo:financial": "tsx examples/financial-demo.ts"
+    "demo:financial": "tsx examples/financial-demo.ts",
+    "demo:nbo": "tsx examples/next-best-offer.ts"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
     "@types/node": "^25.9.1",
     "tsup": "^8.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "zod": "^3.25.0"
   },
   "keywords": [
     "thinkfleet",
