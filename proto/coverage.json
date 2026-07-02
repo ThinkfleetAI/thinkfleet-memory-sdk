@@ -26,7 +26,11 @@
     "ListAuditEvents": "compliance.listAuditEvents",
     "ListPacks": "compliance.listPacks",
     "GetCohort": "lattice.getCohort",
-    "PredictByCohort": "lattice.predictByCohort"
+    "PredictByCohort": "lattice.predictByCohort",
+    "RecordDecision": "learning.recordDecision",
+    "RecordOutcome": "learning.recordOutcome",
+    "GetOutcomes": "learning.getOutcomes",
+    "GetEffectiveness": "learning.getEffectiveness"
   },
   "internal": {
     "ResolveOrCreateEntity": "graph primitive; entity resolution runs server-side during extraction",

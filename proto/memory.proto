@@ -183,6 +183,27 @@ service Memory {
     // provenance (which cohort members + which patterns
     // contributed).
     rpc PredictByCohort(PredictByCohortRequest) returns (PredictByCohortResult);
+
+    // ─── Outcome loop (closed-loop learning) ────────────────────────
+    //
+    // The decision → action → outcome causal primitive. RecordDecision
+    // logs a choice an actor made, with provenance links to the
+    // patterns/predictions that informed it (credit assignment).
+    // RecordOutcome logs the realized result and, on write, re-weights
+    // the online calibrated confidence of every ref the decision was
+    // informed_by (Beta-Binomial posterior). GetOutcomes lists the
+    // linked records for a subject or scope; GetEffectiveness rolls
+    // "what worked" up per action_type / decision_type / policy.
+    //
+    // Domain-agnostic by construction — subject/decision/action/
+    // outcome/reward only, never a consumer-domain noun. Decisions and
+    // outcomes are stored as MemoryItem rows (kind="decision" /
+    // "outcome") so embeddings, retrieval, and the GDPR subject cascade
+    // cover them for free.
+    rpc RecordDecision(RecordDecisionRequest) returns (RecordDecisionResponse);
+    rpc RecordOutcome(RecordOutcomeRequest) returns (RecordOutcomeResponse);
+    rpc GetOutcomes(GetOutcomesRequest) returns (GetOutcomesResponse);
+    rpc GetEffectiveness(GetEffectivenessRequest) returns (GetEffectivenessResponse);
 }
 
 // ─── Common ─────────────────────────────────────────────────────────
@@ -1048,4 +1069,142 @@ message PredictByCohortResult {
     repeated CohortPrediction predictions = 3;
     string generated_at = 4;
     uint64 duration_ms = 5;
+}
+
+// ─── Outcome loop (closed-loop learning) ────────────────────────────
+//
+// The decision → action → outcome causal chain plus online calibration.
+// A Decision records a choice, carrying provenance links to the
+// patterns/predictions that informed it; an Outcome records the realized
+// result and, on write, re-weights the calibrated confidence of every
+// ref the decision was informed_by. Both are persisted as MemoryItem
+// rows (kind="decision" / "outcome") with the subject on metadata.subject
+// so retrieval, embeddings, and the GDPR subject cascade cover them for
+// free. Subject reuses the existing `Subject` message ({kind,
+// external_id}). Timestamps are RFC3339 strings (codebase convention);
+// the CLIENT supplies them so the engine stays free of wall-clock deps,
+// and the engine fills now() only when a field is left blank.
+
+// A causal input to a decision — the pattern/prediction/observation the
+// actor was reacting to. `weight` enables credit assignment across
+// multiple inputs; 0/unset is treated as 1.0.
+message ProvenanceRef {
+    string memory_id = 1;   // pattern/prediction/observation id that informed the decision
+    string ref_type = 2;    // "pattern" | "prediction" | "observation" | "collective"
+    double weight = 3;      // credit-assignment weight; 0/unset ⇒ 1.0
+}
+
+message RecordDecisionRequest {
+    Subject subject = 1;
+    string actor = 2;                       // "agent:copilot" | "human:owner" | "policy:winback-v1"
+    string decision_type = 3;               // generic label: "offer" | "outreach" | "escalation"
+    string policy = 4;                      // optional policy id/version
+    repeated ProvenanceRef informed_by = 5; // causal inputs (credit assignment)
+    string action_type = 6;                 // "send_message" | "apply_discount" | ...
+    map<string, string> params = 7;         // opaque action params
+    string status = 8;                      // "proposed" | "executed" | "skipped"
+    string occurred_at = 9;                 // CLIENT RFC3339 timestamp; engine fills now() when blank
+    map<string, string> metadata = 10;
+    // Idempotency: re-sending the same key returns the existing record
+    // without creating a duplicate.
+    string idempotency_key = 11;
+    // Tenancy — normally injected from gRPC metadata; override for s2s callers.
+    optional string platform_id = 20;
+    optional string project_id = 21;
+}
+
+// The persisted decision. Returned in full (not just the id) so an
+// idempotent replay round-trips the same record.
+message DecisionRecord {
+    string decision_id = 1;
+    Subject subject = 2;
+    string actor = 3;
+    string decision_type = 4;
+    string policy = 5;
+    repeated ProvenanceRef informed_by = 6;
+    string action_type = 7;
+    string status = 8;
+    string occurred_at = 9;   // RFC3339
+    string created = 10;      // RFC3339
+}
+
+message RecordDecisionResponse {
+    DecisionRecord decision = 1;
+}
+
+message RecordOutcomeRequest {
+    string decision_id = 1;                 // links back to the decision
+    Subject subject = 2;
+    string outcome_type = 3;                // "conversion" | "engagement" | "no_response"
+    string result = 4;                      // "success" | "failure" | "partial"
+    double reward = 5;                      // numeric signal (revenue, 0/1, points…)
+    string realized_at = 6;                 // CLIENT RFC3339 timestamp; engine fills now() when blank
+    int64 attribution_window_secs = 7;      // how long after the decision this outcome counts
+    map<string, string> metadata = 8;
+    string idempotency_key = 9;
+    optional string platform_id = 20;
+    optional string project_id = 21;
+}
+
+// One re-weighted ref after an outcome folds into calibration. Surfaces
+// exactly which informing refs moved and by how much (transparency).
+message CalibrationUpdate {
+    string ref_id = 1;
+    string ref_type = 2;
+    double prior_confidence = 3;
+    double posterior_confidence = 4;
+    int64 hits = 5;
+    int64 misses = 6;
+}
+
+message RecordOutcomeResponse {
+    string outcome_id = 1;
+    repeated CalibrationUpdate updates = 2; // which refs were re-weighted
+}
+
+message OutcomeRecord {
+    string outcome_id = 1;
+    string decision_id = 2;
+    Subject subject = 3;
+    string decision_type = 4;   // denormalized from the linked decision
+    string action_type = 5;     // denormalized from the linked decision
+    string outcome_type = 6;
+    string result = 7;
+    double reward = 8;
+    string occurred_at = 9;     // the decision's occurred_at, RFC3339
+    string realized_at = 10;    // RFC3339
+}
+
+message GetOutcomesRequest {
+    Subject subject = 1;        // optional; omit for scope-wide
+    string decision_type = 2;   // optional filter
+    string action_type = 3;     // optional filter
+    uint32 limit = 4;           // default 100, clamped [1, 1000]
+    optional string platform_id = 20;
+    optional string project_id = 21;
+}
+
+message GetOutcomesResponse {
+    repeated OutcomeRecord outcomes = 1;
+}
+
+// One "what worked" aggregation row. Per-subject and per-scope only —
+// cross-tenant aggregation + K-anonymity are the consumer app's job.
+message EffectivenessRow {
+    string group_key = 1;
+    int64 n = 2;                // support (outcome count in this group)
+    double success_rate = 3;    // fraction with result="success"
+    double avg_reward = 4;
+    double confidence = 5;      // Beta-Binomial posterior mean of the success rate
+}
+
+message GetEffectivenessRequest {
+    string group_by = 1;        // "action_type" | "decision_type" | "policy" | "pattern_kind"
+    uint32 min_support = 2;     // return only groups with n >= min_support
+    optional string platform_id = 20;
+    optional string project_id = 21;
+}
+
+message GetEffectivenessResponse {
+    repeated EffectivenessRow rows = 1;
 }
