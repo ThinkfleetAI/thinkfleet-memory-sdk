@@ -175,7 +175,9 @@ export class ConsentResource {
     subject: ConsentSubject,
     options?: RequestOptions,
   ): Promise<MemoryItem | null> {
-    const all = await this.listMemories({ limit: 1000 }, options)
+    // The engine caps `limit` at 500 (querystring/limit must be <= 500);
+    // 1000 hard-fails every consent lookup.
+    const all = await this.listMemories({ limit: 500 }, options)
     const matches = all
       .filter((m) => m.type === MemoryItemType.CONSENT && this.subjectMatches(m, subject))
       .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
