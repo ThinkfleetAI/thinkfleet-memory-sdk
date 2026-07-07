@@ -95,6 +95,17 @@ service Memory {
     // Intended to be run on a schedule by the SaaS.
     rpc Consolidate(ConsolidateRequest) returns (ConsolidateResult);
 
+    // Reflection / insight synthesis. Reviews a subject's recent confirmed
+    // memories and synthesizes higher-order "insight" memories — cross-cutting
+    // generalizations supported by MULTIPLE raw memories that no single one
+    // states outright (e.g. "consistently churns after a price increase").
+    // Insights are saved as first-class memories (kind="insight") with
+    // provenance back to their sources, so retrieval returns synthesized
+    // understanding, not just raw facts. Conservative + LLM-based, gated by
+    // MEMORY_REFLECTION_ENABLED; dry_run previews without writing. Intended to
+    // run on a schedule by the SaaS (like Consolidate).
+    rpc Reflect(ReflectRequest) returns (ReflectResult);
+
     // Generate embeddings for items that don't have one yet (the backfill
     // work-list). generate-on-save only covers new writes; this catches up the
     // existing corpus. No-op if the engine's embedding provider is disabled.
@@ -779,6 +790,37 @@ message ConsolidateResult {
     uint32 scanned = 1;
     uint32 groups = 2;
     uint32 superseded = 3;
+}
+
+message ReflectRequest {
+    // Subject to reflect on. project_id + user_id narrow the corpus to one
+    // subject; both are normally injected from gRPC metadata.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+    optional string user_id = 12;
+    // Max recent confirmed memories to feed the synthesizer. Default 50,
+    // clamped [1, 200].
+    optional uint32 max_sources = 1;
+    // Max insights to synthesize this pass. Default 5, clamped [1, 20].
+    optional uint32 max_insights = 2;
+    // Preview only — synthesize + return, but don't persist. Default false.
+    bool dry_run = 3;
+}
+
+message Insight {
+    // Saved insight memory id (empty when dry_run).
+    string id = 1;
+    string content = 2;
+    // Ids of the source memories that support this insight (provenance).
+    repeated string source_ids = 3;
+    double confidence = 4;
+}
+
+message ReflectResult {
+    repeated Insight insights = 1;
+    // How many source memories were considered.
+    uint32 sources_considered = 2;
+    bool dry_run = 3;
 }
 
 message BackfillRequest {

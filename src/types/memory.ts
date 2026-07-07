@@ -255,3 +255,31 @@ export interface DedupResult {
   groups: number
   superseded: number
 }
+
+export interface ReflectRequest {
+  /** Subject to reflect on. Narrow the corpus to one subject. */
+  userId?: string
+  /** Max recent confirmed memories to feed the synthesizer. Default 50, clamped [1, 200]. */
+  maxSources?: number
+  /** Max insights to synthesize this pass. Default 5, clamped [1, 20]. */
+  maxInsights?: number
+  /** Preview only — synthesize + return, but don't persist. Default false. */
+  dryRun?: boolean
+}
+
+/** A synthesized higher-order insight with provenance back to its sources. */
+export interface Insight {
+  /** Saved insight memory id (empty when dryRun). */
+  id: string
+  content: string
+  /** Ids of the source memories that support this insight. */
+  sourceIds: string[]
+  confidence: number
+}
+
+export interface ReflectResult {
+  insights: Insight[]
+  /** How many source memories were considered. */
+  sourcesConsidered: number
+  dryRun: boolean
+}

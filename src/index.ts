@@ -169,6 +169,9 @@ export type {
   ObserveDocumentRequest,
   ConsolidateRequest,
   ConsolidateResult,
+  ReflectRequest,
+  ReflectResult,
+  Insight,
 } from './types/memory.js'
 
 export {
