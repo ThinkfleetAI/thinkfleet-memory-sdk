@@ -172,6 +172,7 @@ export type {
   ReflectRequest,
   ReflectResult,
   Insight,
+  PrefetchRelatedRequest,
 } from './types/memory.js'
 
 export {

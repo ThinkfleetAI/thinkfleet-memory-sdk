@@ -20,6 +20,7 @@ import {
   type DedupResult,
   type ReflectRequest,
   type ReflectResult,
+  type PrefetchRelatedRequest,
   type ObserveAttachmentRequest,
   type ObserveDocumentRequest,
   type ObserveRequest,
@@ -546,6 +547,21 @@ export class AdminMemoryResource {
     options?: RequestOptions,
   ): Promise<ReflectResult> {
     return this.http.post<ReflectResult>('/admin/memory/reflect', body, options)
+  }
+
+  /**
+   * Predictive (anticipatory) retrieval — spreading activation over the
+   * knowledge graph. Given the memories a session is currently working with
+   * (`seedMemoryIds`), returns other memories linked to the SAME graph
+   * entities, ranked by how many distinct shared entities connect them — the
+   * context most likely needed next, surfaced before it's asked for.
+   * Deterministic and read-only.
+   */
+  async prefetchRelated(
+    body: PrefetchRelatedRequest,
+    options?: RequestOptions,
+  ): Promise<MemoryItem[]> {
+    return this.http.post<MemoryItem[]>('/admin/memory/prefetch-related', body, options)
   }
 
   /**

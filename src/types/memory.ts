@@ -283,3 +283,10 @@ export interface ReflectResult {
   sourcesConsidered: number
   dryRun: boolean
 }
+
+export interface PrefetchRelatedRequest {
+  /** The memories the session is currently working with — the activation seed. */
+  seedMemoryIds: string[]
+  /** Max related memories to return. Default 10, clamped [1, 100]. */
+  limit?: number
+}
