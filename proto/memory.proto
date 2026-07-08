@@ -106,6 +106,14 @@ service Memory {
     // run on a schedule by the SaaS (like Consolidate).
     rpc Reflect(ReflectRequest) returns (ReflectResult);
 
+    // Predictive (anticipatory) retrieval — spreading activation over the
+    // knowledge graph. Given the memories a session is currently working with
+    // (`seed_memory_ids`), return other memories linked to the SAME graph
+    // entities, ranked by how many distinct shared entities connect them (the
+    // more graph paths, the stronger the association). Surfaces the context
+    // most likely needed next before it's asked for. Deterministic; read-only.
+    rpc PrefetchRelated(PrefetchRelatedRequest) returns (SearchResponse);
+
     // Generate embeddings for items that don't have one yet (the backfill
     // work-list). generate-on-save only covers new writes; this catches up the
     // existing corpus. No-op if the engine's embedding provider is disabled.
@@ -821,6 +829,17 @@ message ReflectResult {
     // How many source memories were considered.
     uint32 sources_considered = 2;
     bool dry_run = 3;
+}
+
+message PrefetchRelatedRequest {
+    // Tenancy; normally injected from gRPC metadata.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+    // The memories the session is currently working with — the activation
+    // seed. Their graph entities drive the prefetch.
+    repeated string seed_memory_ids = 1;
+    // Max related memories to return. Default 10, clamped [1, 100].
+    optional uint32 limit = 2;
 }
 
 message BackfillRequest {
