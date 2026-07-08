@@ -95,6 +95,17 @@ service Memory {
     // Intended to be run on a schedule by the SaaS.
     rpc Consolidate(ConsolidateRequest) returns (ConsolidateResult);
 
+    // Reflection / insight synthesis. Reviews a subject's recent confirmed
+    // memories and synthesizes higher-order "insight" memories — cross-cutting
+    // generalizations supported by MULTIPLE raw memories that no single one
+    // states outright (e.g. "consistently churns after a price increase").
+    // Insights are saved as first-class memories (kind="insight") with
+    // provenance back to their sources, so retrieval returns synthesized
+    // understanding, not just raw facts. Conservative + LLM-based, gated by
+    // MEMORY_REFLECTION_ENABLED; dry_run previews without writing. Intended to
+    // run on a schedule by the SaaS (like Consolidate).
+    rpc Reflect(ReflectRequest) returns (ReflectResult);
+
     // Generate embeddings for items that don't have one yet (the backfill
     // work-list). generate-on-save only covers new writes; this catches up the
     // existing corpus. No-op if the engine's embedding provider is disabled.
@@ -107,6 +118,20 @@ service Memory {
     // signal for whether the engine's confidence is honest. Read-only;
     // the same data the mine run logs, exposed for querying.
     rpc GetCalibration(GetCalibrationRequest) returns (CalibrationReport);
+
+    // Build a subject's health profile from biomarker readings,
+    // demographics, and ICD-10 diagnoses stored in memory: a biological
+    // ("health") age estimate (PhenoAge core + composite adjustments) and
+    // predicted conditions (biomarkers trending toward / already above
+    // clinical thresholds). Screening indicators with provenance — not a
+    // diagnosis. Requires the @thinkfleet/pack-healthcare pack.
+    rpc GetHealthProfile(GetHealthProfileRequest) returns (HealthProfile);
+
+    // Cohort health outcomes — "patients like this one." Condition
+    // prevalence among the patients most similar by baseline features
+    // (age, sex, BMI, biomarkers). Aggregate / de-identified base rates;
+    // opted-out subjects excluded. Requires the healthcare pack.
+    rpc GetCohortHealthRisk(GetCohortHealthRiskRequest) returns (CohortHealthRisk);
 
     // Build a behavioral profile snapshot for a subject. Aggregates
     // their active patterns into a single payload: RFM segment, top
@@ -143,6 +168,20 @@ service Memory {
     rpc UpdateAlertRule(UpdateAlertRuleRequest) returns (AlertRule);
     rpc DeleteAlertRule(DeleteAlertRuleRequest) returns (DeleteAlertRuleResult);
     rpc ListAlertFires(ListAlertFiresRequest) returns (ListAlertFiresResult);
+
+    // ─── Typed attributes (structured/numeric data the engine reasons over) ──
+    //
+    // Register the schema of an attribute (type + plausibility range), ingest
+    // typed measurements in batch (validated, quarantined-or-accepted, folded
+    // into per-subject running accumulators), query the raw series by range,
+    // and read a subject's accumulator. Accepted numeric observations also emit
+    // a `typed.observation` event so `memory-value` alert rules can fire.
+
+    rpc UpsertAttributeDef(AttributeDef) returns (AttributeDef);
+    rpc QueryAttributeDefs(QueryAttributeDefsRequest) returns (QueryAttributeDefsResult);
+    rpc SaveTypedObservations(SaveTypedObservationsRequest) returns (IngestReport);
+    rpc QueryTypedObservations(QueryTypedObservationsRequest) returns (QueryTypedObservationsResult);
+    rpc GetAccumulator(GetAccumulatorRequest) returns (Accumulator);
 
     // ─── Phase 3f Compliance (Rust) ─────────────────────────────────
 
@@ -184,6 +223,14 @@ service Memory {
     // contributed).
     rpc PredictByCohort(PredictByCohortRequest) returns (PredictByCohortResult);
 
+    // v2.2 emergent behavior discovery — cluster a project's subjects by
+    // their feature vectors and surface dense, cohesive clusters as
+    // candidate behaviors nobody predefined. Each result carries prevalence,
+    // stability (cohesion), member subjects, and explainable evidence. The
+    // statistical core abstains structurally: weak/loose clusters are noise,
+    // never behaviors.
+    rpc DiscoverBehaviors(DiscoverBehaviorsRequest) returns (DiscoverBehaviorsResult);
+
     // ─── Outcome loop (closed-loop learning) ────────────────────────
     //
     // The decision → action → outcome causal primitive. RecordDecision
@@ -204,6 +251,64 @@ service Memory {
     rpc RecordOutcome(RecordOutcomeRequest) returns (RecordOutcomeResponse);
     rpc GetOutcomes(GetOutcomesRequest) returns (GetOutcomesResponse);
     rpc GetEffectiveness(GetEffectivenessRequest) returns (GetEffectivenessResponse);
+}
+
+// ─── Behavior discovery (v2.2) ──────────────────────────────────────
+
+message DiscoverBehaviorsRequest {
+    // Tenancy; normally injected from gRPC metadata.
+    optional string platform_id = 1;
+    optional string project_id = 2;
+    // Minimum similarity [0,1] for a subject to join a cluster. Higher =
+    // tighter, more numerous clusters. Default 0.75.
+    optional double sim_threshold = 3;
+    // A cluster smaller than this is noise, not a behavior. Default 3.
+    optional uint32 min_cluster_size = 4;
+    // Drop clusters whose cohesion (mean intra-cluster similarity) is below
+    // this. Default 0.6.
+    optional double min_stability = 5;
+    // Cap on member subjects returned per behavior. Default 50.
+    optional uint32 max_members = 6;
+    // When true, persist each discovered behavior as a behavior_pattern memory
+    // on its member subjects (kind="discovered_behavior"), so it joins their
+    // standing profile and feeds cohort + prediction features. Default false
+    // (discovery is read-only unless promotion is requested).
+    bool promote = 7;
+}
+
+// One emergent behavior: a cohesive cluster of subjects the data grouped
+// together, with the statistics that justify treating it as real.
+message DiscoveredBehavior {
+    // Deterministic rule-based description (RFM band + frequency + dominant
+    // pattern + top entity). The LLM-naming pass upgrades this later.
+    string label = 1;
+    // Fraction of the analyzed cohort in this cluster, [0,1].
+    double prevalence = 2;
+    // Cohesion: mean pairwise similarity within the cluster, [0,1].
+    double stability = 3;
+    // Total subjects in the cluster (may exceed member_subjects length when
+    // capped by max_members).
+    uint32 size = 4;
+    // Up to max_members subjects, medoid first — provenance for who exhibits
+    // this behavior.
+    repeated Subject member_subjects = 5;
+    // Human-readable signals behind the label (e.g. "pattern: recurring_event").
+    repeated string exemplar_evidence = 6;
+    // An LLM-ready prompt to name this behavior, grounded in its verified stats
+    // + evidence. The engine never calls an LLM itself ("your model, your key")
+    // — the caller runs this prompt and may write the result back as the name.
+    string naming_prompt = 7;
+}
+
+message DiscoverBehaviorsResult {
+    repeated DiscoveredBehavior behaviors = 1;
+    // Total subjects analyzed (the prevalence denominator).
+    uint32 subjects_analyzed = 2;
+    string generated_at = 3;
+    uint64 duration_ms = 4;
+    // When promote=true: number of behavior_pattern memories persisted across
+    // all behaviors' member subjects. 0 otherwise.
+    uint32 promoted_count = 5;
 }
 
 // ─── Common ─────────────────────────────────────────────────────────
@@ -515,6 +620,67 @@ message PredictRequest {
     // Imminence window for event emission, in hours. Default 48, clamped
     // [1, 720]. Only used when emit_events is true.
     optional uint32 imminent_within_hours = 13;
+    // Declarative target (v2 general prediction). When set, the engine
+    // predicts THIS target from the subject's observation history instead of
+    // projecting mined behavior patterns — "predict anything", not the canned
+    // menu. When unset, behaves exactly as before (pattern projection).
+    optional PredictionTarget target = 14;
+}
+
+// A declaratively-specified prediction target. The first supported kind is
+// "event_occurrence" (will event X happen within the horizon?); numeric /
+// event_time / anomaly kinds follow (see prediction-behavior-engine-v2 spec).
+message PredictionTarget {
+    // Target type. v0: "event_occurrence".
+    string kind = 1;
+    // For event_occurrence: the activity event to predict. Matched against an
+    // observation's metadata.eventType, then category, then content substring
+    // (case-insensitive). Empty = "any activity".
+    string event_type = 2;
+    // How many days of history to learn the base rate from. Default 365.
+    optional uint32 lookback_days = 3;
+    // For kind="numeric": the typed-observation attribute to predict the next
+    // value of (e.g. "order_total"). Required for numeric targets; ignored for
+    // event_occurrence.
+    optional string attribute_key = 4;
+}
+
+// The prediction for a declared target. A single calibrated estimate (with the
+// same interval + abstention discipline as PredictedEvent), not a list of
+// pattern firings.
+message TargetPrediction {
+    string target_kind = 1;
+    string event_type = 2;
+    // P(event occurs within the horizon), calibrated. Meaningless if abstained.
+    double probability = 3;
+    // 95% interval around `probability`; width reflects how much history backs it.
+    double probability_lower = 4;
+    double probability_upper = 5;
+    // First-class abstention — true when there isn't enough history to estimate.
+    bool abstained = 6;
+    string abstention_reason = 7;
+    // Human-readable derivation (counts, rate, horizon) for explainability.
+    string explanation = 8;
+    // Provenance: ids of the observations the estimate was derived from.
+    repeated string evidence_memory_ids = 9;
+    // For kind="numeric": the predicted next value and its 95% prediction
+    // interval. (probability_* fields are the event_occurrence analogue;
+    // exactly one set is meaningful per target kind.)
+    double value = 10;
+    double value_lower = 11;
+    double value_upper = 12;
+    // For kind="event_time": when the next occurrence is expected (ISO-8601),
+    // with a 95% interval, plus days-from-now. Empty strings when abstained.
+    string expected_at = 13;
+    string expected_at_lower = 14;
+    string expected_at_upper = 15;
+    double days_until = 16;
+    // For kind="anomaly": is the latest value of the attribute an outlier vs the
+    // subject's history? anomaly_score is |z| (std-devs from the baseline mean);
+    // is_anomaly is anomaly_score > threshold. The latest value is in `value`,
+    // the normal range in value_lower/value_upper.
+    double anomaly_score = 17;
+    bool is_anomaly = 18;
 }
 
 // One projected event the engine expects based on the subject's
@@ -539,6 +705,14 @@ message PredictedEvent {
     // (and therefore this prediction). Powers the right-to-
     // explanation API.
     repeated string source_memory_ids = 7;
+    // Calibrated 95% confidence interval around `confidence`. Width
+    // reflects how much realized feedback the prediction's calibration
+    // band has: a band with little history reports a wide interval, one
+    // with a long track record a tight one (Wilson score). This is the
+    // "with confidence, honestly" half of the trust layer — callers
+    // should surface the interval, not just the point estimate.
+    double confidence_lower = 8;
+    double confidence_upper = 9;
 }
 
 message PredictResult {
@@ -553,6 +727,18 @@ message PredictResult {
     // Number of `prediction.imminent` events emitted this call (0 unless
     // emit_events was set; dedupe may make it less than the imminent count).
     uint32 events_emitted = 6;
+    // First-class abstention: true when the engine declines to predict
+    // because there isn't enough signal (no active patterns for the
+    // subject, or nothing cleared the confidence floor). Callers MUST
+    // treat an abstention as "unknown", never as "no/low risk" — this is
+    // what keeps the engine safe for regulated use.
+    bool abstained = 7;
+    // Machine-readable reason when `abstained` is true (empty otherwise),
+    // e.g. "insufficient_signal: ..." / "insufficient_confidence: ...".
+    string abstention_reason = 8;
+    // Set instead of `predictions` when the request carried a declarative
+    // `target`: the single calibrated estimate for that target.
+    optional TargetPrediction target_prediction = 9;
 }
 
 message EstimateRequest {
@@ -606,6 +792,37 @@ message ConsolidateResult {
     uint32 superseded = 3;
 }
 
+message ReflectRequest {
+    // Subject to reflect on. project_id + user_id narrow the corpus to one
+    // subject; both are normally injected from gRPC metadata.
+    optional string platform_id = 10;
+    optional string project_id = 11;
+    optional string user_id = 12;
+    // Max recent confirmed memories to feed the synthesizer. Default 50,
+    // clamped [1, 200].
+    optional uint32 max_sources = 1;
+    // Max insights to synthesize this pass. Default 5, clamped [1, 20].
+    optional uint32 max_insights = 2;
+    // Preview only — synthesize + return, but don't persist. Default false.
+    bool dry_run = 3;
+}
+
+message Insight {
+    // Saved insight memory id (empty when dry_run).
+    string id = 1;
+    string content = 2;
+    // Ids of the source memories that support this insight (provenance).
+    repeated string source_ids = 3;
+    double confidence = 4;
+}
+
+message ReflectResult {
+    repeated Insight insights = 1;
+    // How many source memories were considered.
+    uint32 sources_considered = 2;
+    bool dry_run = 3;
+}
+
 message BackfillRequest {
     // Max items to embed this call. Default 500, clamped [1, 10000]. Call
     // repeatedly until embedded == 0 to drain a large corpus.
@@ -649,6 +866,87 @@ message CalibrationReport {
     // Totals across all buckets.
     uint32 total_patterns = 2;
     uint32 total_predictions = 3;
+}
+
+// ─── Health profile ─────────────────────────────────────────────────
+
+message GetHealthProfileRequest {
+    Subject subject = 1;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message HealthAgeComponent {
+    string label = 1;
+    double years_delta = 2;
+}
+
+message BiologicalAge {
+    double biological_age_years = 1;
+    double chronological_age_years = 2;
+    double delta_years = 3;
+    // "phenoage_hybrid" | "composite"
+    string method = 4;
+    double confidence = 5;
+    repeated HealthAgeComponent components = 6;
+    optional double mortality_score = 7;
+}
+
+message PredictedHealthCondition {
+    string condition = 1;
+    string label = 2;
+    // "above_threshold_now" | "threshold_projection"
+    string basis = 3;
+    string biomarker = 4;
+    double current_value = 5;
+    double threshold = 6;
+    optional string projected_onset_at = 7;
+    double confidence = 8;
+    string rationale = 9;
+    repeated string source_memory_ids = 10;
+}
+
+message BiomarkerReading {
+    string biomarker = 1;
+    double value = 2;
+    string unit = 3;
+    string observed_at = 4;
+}
+
+message HealthProfile {
+    Subject subject = 1;
+    optional BiologicalAge biological_age = 2;
+    repeated PredictedHealthCondition predicted_conditions = 3;
+    repeated string diagnosed_conditions = 4;
+    repeated BiomarkerReading latest_biomarkers = 5;
+    string disclaimer = 6;
+    string generated_at = 7;
+}
+
+message GetCohortHealthRiskRequest {
+    Subject subject = 1;
+    optional uint32 k = 2;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message CohortConditionRisk {
+    string condition = 1;
+    double cohort_prevalence = 2;
+    uint32 cohort_size = 3;
+    uint32 count_with = 4;
+    double mean_similarity = 5;
+    double confidence = 6;
+    string rationale = 7;
+}
+
+message CohortHealthRisk {
+    Subject subject = 1;
+    uint32 cohort_size = 2;
+    uint32 population_size = 3;
+    repeated CohortConditionRisk risks = 4;
+    string disclaimer = 5;
+    string generated_at = 6;
 }
 
 // ─── Profile ────────────────────────────────────────────────────────
@@ -1071,6 +1369,103 @@ message PredictByCohortResult {
     uint64 duration_ms = 5;
 }
 
+// ─── Typed attributes ───────────────────────────────────────────────
+
+// A registered attribute definition (per platform/project). Drives input
+// validation: type match + plausibility range + required-ness.
+message AttributeDef {
+    string id = 1;
+    optional string platform_id = 2;
+    optional string project_id = 3;
+    string attribute_key = 4;
+    // numeric | categorical | temporal | boolean
+    string data_type = 5;
+    optional string unit = 6;
+    optional double min_valid = 7;
+    optional double max_valid = 8;
+    bool required = 9;
+    // Free-form JSON; defaults to null when blank.
+    optional string metadata_json = 10;
+}
+
+message QueryAttributeDefsRequest {
+    optional string platform_id = 1;
+    optional string project_id = 2;
+    optional string attribute_key = 3;
+    optional uint32 limit = 4;
+    optional uint32 offset = 5;
+}
+
+message QueryAttributeDefsResult {
+    repeated AttributeDef defs = 1;
+}
+
+// One typed measurement of an attribute for a subject at a point in time.
+// Exactly one value_* field is meaningful, per the attribute's data_type.
+// trust/quality_score/status are engine-set on read and ignored on write
+// (trust may be supplied as a source-reliability hint).
+message TypedObservation {
+    string id = 1;
+    optional string platform_id = 2;
+    optional string project_id = 3;
+    string subject_kind = 4;
+    string subject_external_id = 5;
+    string attribute_key = 6;
+    optional double value_numeric = 7;
+    optional string value_text = 8;
+    optional bool value_bool = 9;
+    // ISO-8601 for temporal value.
+    optional string value_ts = 10;
+    // ISO-8601 observation time.
+    string observed_at = 11;
+    optional string source = 12;
+    optional float trust = 13;
+    optional float quality_score = 14;
+    // accepted | quarantined
+    optional string status = 15;
+}
+
+message SaveTypedObservationsRequest {
+    repeated TypedObservation observations = 1;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message IngestReport {
+    uint64 accepted = 1;
+    uint64 quarantined = 2;
+    uint64 duplicates = 3;
+    // observationId -> quarantine reason
+    map<string, string> quarantine_reasons = 4;
+}
+
+message QueryTypedObservationsRequest {
+    optional string platform_id = 1;
+    optional string project_id = 2;
+    optional string subject_kind = 3;
+    optional string subject_external_id = 4;
+    optional string attribute_key = 5;
+    // ISO-8601 inclusive bounds on observedAt.
+    optional string since = 6;
+    optional string until = 7;
+    optional double min_value = 8;
+    optional double max_value = 9;
+    optional string status = 10;
+    optional uint32 limit = 11;
+    optional uint32 offset = 12;
+}
+
+message QueryTypedObservationsResult {
+    repeated TypedObservation observations = 1;
+}
+
+message GetAccumulatorRequest {
+    optional string platform_id = 1;
+    string subject_kind = 2;
+    string subject_external_id = 3;
+    string attribute_key = 4;
+}
+
 // ─── Outcome loop (closed-loop learning) ────────────────────────────
 //
 // The decision → action → outcome causal chain plus online calibration.
@@ -1207,4 +1602,25 @@ message GetEffectivenessRequest {
 
 message GetEffectivenessResponse {
     repeated EffectivenessRow rows = 1;
+}
+
+// Per-(subject, attribute) running statistics. Raw moments are stored;
+// mean/variance/stddev are derived and filled in on read.
+message Accumulator {
+    string subject_kind = 1;
+    string subject_external_id = 2;
+    string attribute_key = 3;
+    int64 count = 4;
+    double sum = 5;
+    double sum_sq = 6;
+    optional double min_val = 7;
+    optional double max_val = 8;
+    optional double last_val = 9;
+    optional string last_observed_at = 10;
+    double cumulative = 11;
+    optional double ewma = 12;
+    optional double ewma_var = 13;
+    optional double mean = 14;
+    optional double variance = 15;
+    optional double stddev = 16;
 }

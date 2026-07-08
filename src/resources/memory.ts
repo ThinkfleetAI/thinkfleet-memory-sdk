@@ -18,6 +18,8 @@ import {
   type BackfillEmbeddingsResult,
   type DedupRequest,
   type DedupResult,
+  type ReflectRequest,
+  type ReflectResult,
   type ObserveAttachmentRequest,
   type ObserveDocumentRequest,
   type ObserveRequest,
@@ -528,6 +530,22 @@ export class AdminMemoryResource {
     options?: RequestOptions,
   ): Promise<DedupResult> {
     return this.http.post<DedupResult>('/admin/memory/dedup', body, options)
+  }
+
+  /**
+   * Reflection / insight synthesis: review a subject's recent confirmed
+   * memories and synthesize higher-order "insight" memories — cross-cutting
+   * generalizations supported by multiple raw memories (e.g. "churns after a
+   * price increase"). Insights are saved as first-class memories
+   * (kind="insight") with provenance back to their sources, so later
+   * retrieval returns synthesized understanding, not just raw facts. Pass
+   * `dryRun` to preview without persisting. Intended to run on a schedule.
+   */
+  async reflect(
+    body: ReflectRequest = {},
+    options?: RequestOptions,
+  ): Promise<ReflectResult> {
+    return this.http.post<ReflectResult>('/admin/memory/reflect', body, options)
   }
 
   /**

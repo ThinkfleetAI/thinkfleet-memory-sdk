@@ -1,5 +1,5 @@
 {
-  "_comment": "Tracks how each engine RPC (proto/memory.proto) is surfaced in the SDK. check-proto-drift.mjs fails CI if the proto gains an RPC that is in neither list, so the SDK can't silently fall behind the engine. Vendored from thinkfleet-memory-engine main @ d96330867a99.",
+  "_comment": "Tracks how each engine RPC (proto/memory.proto) is surfaced in the SDK. check-proto-drift.mjs fails CI if the proto gains an RPC that is in neither list, so the SDK can't silently fall behind the engine. Vendored from thinkfleet-memory-engine main @ 7f1c2be69ae1.",
   "covered": {
     "Save": "memory.admin.create / memory.observe",
     "Observe": "memory.observe",
@@ -9,6 +9,7 @@
     "Predict": "lattice.predict",
     "Estimate": "lattice.estimate",
     "Consolidate": "memory.admin.dedup",
+    "Reflect": "memory.admin.reflect",
     "Backfill": "memory.admin.backfillEmbeddings",
     "GetCalibration": "lattice.getCalibration",
     "GetProfile": "lattice.getProfile",
@@ -30,7 +31,15 @@
     "RecordDecision": "learning.recordDecision",
     "RecordOutcome": "learning.recordOutcome",
     "GetOutcomes": "learning.getOutcomes",
-    "GetEffectiveness": "learning.getEffectiveness"
+    "GetEffectiveness": "learning.getEffectiveness",
+    "UpsertAttributeDef": "typed.registerAttribute",
+    "QueryAttributeDefs": "typed.listAttributes",
+    "SaveTypedObservations": "typed.ingest / typed.enqueue",
+    "QueryTypedObservations": "typed.queryObservations",
+    "GetAccumulator": "typed.accumulator",
+    "GetHealthProfile": "health.getProfile",
+    "GetCohortHealthRisk": "health.getCohortRisk",
+    "DiscoverBehaviors": "behaviors.discover"
   },
   "internal": {
     "ResolveOrCreateEntity": "graph primitive; entity resolution runs server-side during extraction",
