@@ -25,7 +25,7 @@ import type {
 } from '../types/lattice.js'
 
 /**
- * Lattice — behavioral pattern intelligence for memory.thinkfleet.ai.
+ * Lattice — behavioral pattern intelligence for app.memmesh.ai.
  *
  * Mines a contact's event history for repeatable behaviors and exposes
  * a context bundle the agent can hand to a message-rendering step.

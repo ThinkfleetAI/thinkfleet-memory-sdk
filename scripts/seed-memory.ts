@@ -7,7 +7,7 @@
  * Theme: AI-engineering team's institutional knowledge base.
  *
  * Usage:
- *   API_KEY=sk-... PROJECT_ID=proj_... BASE_URL=https://memory.thinkfleet.ai \
+ *   API_KEY=sk-... PROJECT_ID=proj_... BASE_URL=https://app.memmesh.ai \
  *     npx tsx scripts/seed-memory.ts
  *
  * Flags:
@@ -21,13 +21,13 @@ import { ThinkFleetMemory, MemoryItemType, MemoryScope } from '../src/index.js'
 
 const API_KEY = process.env.API_KEY ?? process.env.THINKFLEET_API_KEY
 const PROJECT_ID = process.env.PROJECT_ID ?? process.env.THINKFLEET_PROJECT_ID
-const BASE_URL = process.env.BASE_URL ?? process.env.THINKFLEET_BASE_URL ?? 'https://memory.thinkfleet.ai'
+const BASE_URL = process.env.BASE_URL ?? process.env.THINKFLEET_BASE_URL ?? 'https://app.memmesh.ai'
 
 if (!API_KEY || !PROJECT_ID) {
   console.error('Missing required environment variables:')
   console.error('  API_KEY=sk-...')
   console.error('  PROJECT_ID=proj_...')
-  console.error('  BASE_URL=https://memory.thinkfleet.ai   (optional)')
+  console.error('  BASE_URL=https://app.memmesh.ai   (optional)')
   process.exit(1)
 }
 
@@ -202,7 +202,7 @@ async function cleanupSeed(): Promise<number> {
 // ── Main ────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  console.log(`memory.thinkfleet.ai seed script`)
+  console.log(`app.memmesh.ai seed script`)
   console.log(`  base:    ${BASE_URL}`)
   console.log(`  project: ${PROJECT_ID}`)
 

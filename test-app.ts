@@ -2,14 +2,14 @@
 /**
  * @thinkfleet/memory-sdk — integration smoke test
  *
- * Exercises every public SDK method against a live memory.thinkfleet.ai
+ * Exercises every public SDK method against a live app.memmesh.ai
  * instance. Read-mostly, with one create+update+delete cycle so the
  * project is left in the same state it started.
  *
  * Usage:
  *   export THINKFLEET_API_KEY="sk-..."
  *   export THINKFLEET_PROJECT_ID="..."
- *   export THINKFLEET_BASE_URL="https://memory.thinkfleet.ai"   # optional
+ *   export THINKFLEET_BASE_URL="https://app.memmesh.ai"   # optional
  *   npx tsx test-app.ts
  *
  * Exit code 0 = all checks passed, 1 = at least one failed. Failures
@@ -23,13 +23,13 @@ import { ThinkFleetMemory, MemoryItemType, MemoryScope } from './src/index.js'
 
 const API_KEY = process.env.THINKFLEET_API_KEY
 const PROJECT_ID = process.env.THINKFLEET_PROJECT_ID
-const BASE_URL = process.env.THINKFLEET_BASE_URL ?? 'https://memory.thinkfleet.ai'
+const BASE_URL = process.env.THINKFLEET_BASE_URL ?? 'https://app.memmesh.ai'
 
 if (!API_KEY || !PROJECT_ID) {
   console.error('Missing required environment variables:')
   console.error('  THINKFLEET_API_KEY=sk-...')
   console.error('  THINKFLEET_PROJECT_ID=...')
-  console.error('  THINKFLEET_BASE_URL=https://memory.thinkfleet.ai   (optional)')
+  console.error('  THINKFLEET_BASE_URL=https://app.memmesh.ai   (optional)')
   process.exit(1)
 }
 
@@ -67,7 +67,7 @@ function section(title: string): void {
 // ── Checks ──────────────────────────────────────────────────────────
 
 async function run(): Promise<void> {
-  console.log(`memory.thinkfleet.ai SDK smoke test`)
+  console.log(`app.memmesh.ai SDK smoke test`)
   console.log(`  base:    ${BASE_URL}`)
   console.log(`  project: ${PROJECT_ID}`)
 
