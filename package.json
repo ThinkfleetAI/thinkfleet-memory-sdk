@@ -1,6 +1,6 @@
 {
   "name": "@thinkfleet/memory-sdk",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "TypeScript SDK for memory.thinkfleet.ai — admin + project memory CRUD, semantic search, feedback, and Lattice behavioral patterns",
   "type": "module",
   "main": "./dist/index.cjs",
