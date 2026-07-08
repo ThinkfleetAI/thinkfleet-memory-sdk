@@ -1,5 +1,5 @@
 {
-  "_comment": "Tracks how each engine RPC (proto/memory.proto) is surfaced in the SDK. check-proto-drift.mjs fails CI if the proto gains an RPC that is in neither list, so the SDK can't silently fall behind the engine. Vendored from thinkfleet-memory-engine main @ bc5c9ec.",
+  "_comment": "Tracks how each engine RPC (proto/memory.proto) is surfaced in the SDK. check-proto-drift.mjs fails CI if the proto gains an RPC that is in neither list, so the SDK can't silently fall behind the engine. Vendored from thinkfleet-memory-engine main @ 7b8b80f.",
   "covered": {
     "Save": "memory.admin.create / memory.observe",
     "Observe": "memory.observe",
@@ -15,6 +15,8 @@
     "GetCalibration": "lattice.getCalibration",
     "GetProfile": "lattice.getProfile",
     "BuildContext": "context.build",
+    "BatchBuildContext": "context.batchBuild",
+    "QueryGraph": "context.queryGraph",
     "EmitEvent": "events.emit",
     "PollEvents": "events.poll",
     "CreateAlertRule": "alerts.create",

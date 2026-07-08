@@ -132,6 +132,40 @@ export interface ContextObservation {
  * const prompt = `Subject context:\n${JSON.stringify(ctx, null, 2)}\n\nUser question: ...`
  * ```
  */
+/** One edge of the temporal knowledge graph. */
+export interface GraphEdge {
+  id: string
+  subjectId: string
+  predicate: string
+  /** Exactly one of objectId (entity) or objectLiteral is set. */
+  objectId?: string
+  objectLiteral?: string
+  weight: number
+  validFrom: string
+  /** Absent = still current. */
+  validTo?: string
+}
+
+export interface QueryGraphRequest {
+  /** Narrow to a subject entity and/or predicate. */
+  subjectId?: string
+  predicate?: string
+  /** RFC3339 instant for a point-in-time view. Omit for the current graph. */
+  asOf?: string
+  /** Max edges. Default 100, clamped [1, 1000]. */
+  limit?: number
+}
+
+export interface BatchContextBuildRequest {
+  /** Subjects to build context for (<= 500). Options below apply to all. */
+  subjects: Array<{ kind: string; externalId: string }>
+  include?: ContextSection[]
+  maxTokens?: number
+  memoryLimit?: number
+  predictionLimit?: number
+  excludeCategories?: string[]
+}
+
 export class ContextResource {
   constructor(private readonly http: HttpClient) {}
 
@@ -140,5 +174,34 @@ export class ContextResource {
     options?: RequestOptions,
   ): Promise<ContextBundle> {
     return this.http.post<ContextBundle>('/lattice/context', body, options)
+  }
+
+  /**
+   * Build context bundles for many subjects in ONE call (up to 500). Replaces
+   * the N-round-trip bulk load — return order matches `subjects`.
+   */
+  async batchBuild(
+    body: BatchContextBuildRequest,
+    options?: RequestOptions,
+  ): Promise<ContextBundle[]> {
+    const r = await this.http.post<{ bundles: ContextBundle[] }>(
+      '/lattice/context/batch',
+      body,
+      options,
+    )
+    return r.bundles
+  }
+
+  /**
+   * Point-in-time knowledge-graph query: edges valid AT `asOf` (or current if
+   * omitted), filtered by subject/predicate. "What did we believe about X on
+   * date Y."
+   */
+  async queryGraph(
+    body: QueryGraphRequest = {},
+    options?: RequestOptions,
+  ): Promise<GraphEdge[]> {
+    const r = await this.http.post<{ edges: GraphEdge[] }>('/lattice/graph/query', body, options)
+    return r.edges
   }
 }
