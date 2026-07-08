@@ -114,6 +114,12 @@ service Memory {
     // most likely needed next before it's asked for. Deterministic; read-only.
     rpc PrefetchRelated(PrefetchRelatedRequest) returns (SearchResponse);
 
+    // Point-in-time knowledge-graph query. Returns the edges valid AT `as_of`
+    // (or, if omitted, the current ones) matching the subject/predicate filter
+    // — "what did we believe about X on date Y". Backed by the bi-temporal
+    // valid_from/valid_to on each edge. Read-only.
+    rpc QueryGraph(QueryGraphRequest) returns (QueryGraphResult);
+
     // Generate embeddings for items that don't have one yet (the backfill
     // work-list). generate-on-save only covers new writes; this catches up the
     // existing corpus. No-op if the engine's embedding provider is disabled.
@@ -155,6 +161,12 @@ service Memory {
     // observations into one token-budgeted payload. Every claim
     // carries source ids so any inference can be traced.
     rpc BuildContext(BuildContextRequest) returns (ContextBundle);
+
+    // Batch context assembly — build bundles for many subjects in ONE call.
+    // Replaces the N-round-trip / direct-DB bulk load (e.g. EngageIt loading
+    // memory for hundreds of customers at once, which is what killed the old
+    // path). Bundles are returned in request order; capped at 500 subjects.
+    rpc BatchBuildContext(BatchBuildContextRequest) returns (BatchContextBundle);
 
     // ─── Events (the proactive event log) ───────────────────────────
 
@@ -842,6 +854,34 @@ message PrefetchRelatedRequest {
     optional uint32 limit = 2;
 }
 
+message QueryGraphRequest {
+    optional string platform_id = 10;
+    optional string project_id = 11;
+    // Narrow to a subject entity and/or predicate (both optional).
+    optional string subject_id = 1;
+    optional string predicate = 2;
+    // RFC3339 instant for a point-in-time view. Omit for the current graph.
+    optional string as_of = 3;
+    // Max edges. Default 100, clamped [1, 1000].
+    optional uint32 limit = 4;
+}
+
+message GraphEdge {
+    string id = 1;
+    string subject_id = 2;
+    string predicate = 3;
+    // Exactly one of object_id (entity) or object_literal is set.
+    optional string object_id = 4;
+    optional string object_literal = 5;
+    double weight = 6;
+    string valid_from = 7;       // RFC3339
+    optional string valid_to = 8; // RFC3339; absent = still current
+}
+
+message QueryGraphResult {
+    repeated GraphEdge edges = 1;
+}
+
 message BackfillRequest {
     // Max items to embed this call. Default 500, clamped [1, 10000]. Call
     // repeatedly until embedded == 0 to drain a large corpus.
@@ -1030,6 +1070,23 @@ message BuildContextRequest {
     repeated string exclude_categories = 6;
     optional string platform_id = 10;
     optional string project_id = 11;
+}
+
+message BatchBuildContextRequest {
+    // Subjects to build context for (<= 500). The options below apply to all.
+    repeated Subject subjects = 1;
+    repeated string include = 2;
+    optional uint32 max_tokens = 3;
+    optional uint32 memory_limit = 4;
+    optional uint32 prediction_limit = 5;
+    repeated string exclude_categories = 6;
+    optional string platform_id = 10;
+    optional string project_id = 11;
+}
+
+message BatchContextBundle {
+    // One bundle per requested subject, in request order.
+    repeated ContextBundle bundles = 1;
 }
 
 message ContextProfileSummary {

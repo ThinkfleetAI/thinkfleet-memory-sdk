@@ -33,6 +33,9 @@ export type {
   ContextPrediction,
   ContextMemory,
   ContextObservation,
+  BatchContextBuildRequest,
+  QueryGraphRequest,
+  GraphEdge,
 } from './resources/context.js'
 
 export { EventsResource } from './resources/events.js'
