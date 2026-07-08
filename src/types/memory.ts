@@ -122,6 +122,39 @@ export interface ObserveVoiceRequest
   audio: Uint8Array | string
 }
 
+/**
+ * Ingest a media item (image / audio / document). The engine extracts text via
+ * LiteLLM, then runs it through the full Observe pipeline — so the returned
+ * memories get extraction, graph wiring, and embedding like any observation.
+ * Requires multimodal to be enabled on the engine.
+ */
+export interface IngestMediaRequest {
+  /** Bytes — Uint8Array / Buffer — or a pre-encoded base64 string. */
+  media: Uint8Array | string
+  /** Standard mime: `image/png`, `audio/mpeg`, `application/pdf`, `text/*`. */
+  mimeType: string
+  /** Optional attribution + threading (same as observe). */
+  userId?: string
+  agentId?: string
+  sessionId?: string
+  /** Optional source (filename / URL), recorded on the memory's provenance. */
+  source?: string
+}
+
+/** Result of ingesting one media item. */
+export interface IngestMediaResult {
+  /** Memories extracted from the media. */
+  saved: MemoryItem[]
+  /** Extraction candidates before dedupe. `saved.length <= candidateCount`. */
+  candidateCount: number
+  /** The text the model extracted from the media. */
+  extractedText: string
+  /** Classified modality: `image` | `audio` | `document`. */
+  modality: string
+  /** Durable location of the retained media (empty if not stored). */
+  blobUri: string
+}
+
 /** Document-flavored convenience type — uses `document` instead of `image`. */
 export interface ObserveDocumentRequest
   extends Omit<ObserveAttachmentRequest, 'image'> {
