@@ -170,6 +170,8 @@ export type {
   ObserveAttachmentRequest,
   ObserveVoiceRequest,
   ObserveDocumentRequest,
+  IngestMediaRequest,
+  IngestMediaResult,
   ConsolidateRequest,
   ConsolidateResult,
   ReflectRequest,

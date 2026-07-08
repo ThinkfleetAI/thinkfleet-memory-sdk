@@ -12,6 +12,8 @@ import {
   type MemorySearchRequest,
   type MemorySearchResult,
   type MemoryStats,
+  type IngestMediaRequest,
+  type IngestMediaResult,
   type ConsolidateRequest,
   type ConsolidateResult,
   type BackfillEmbeddingsRequest,
@@ -246,6 +248,35 @@ export class MemoryResource {
     const dataBase64 = typeof image === 'string' ? image : toBase64(image)
     return this.http.post<MemoryItem>(
       '/memory/attachments',
+      { ...rest, dataBase64 },
+      options,
+    )
+  }
+
+  /**
+   * Ingest a media item — image, audio, or document — as memories. The engine
+   * extracts text (vision / transcription / OCR via LiteLLM) and runs it
+   * through the full observe pipeline, so the result is real memories with
+   * graph wiring and embeddings, not just a stored file. Requires multimodal
+   * to be enabled on the engine.
+   *
+   * ```ts
+   * const res = await tf.memory.ingestMedia({
+   *   media: fs.readFileSync('receipt.png'),
+   *   mimeType: 'image/png',
+   *   source: 'receipt.png',
+   * })
+   * console.log(res.extractedText, res.saved.length)
+   * ```
+   */
+  async ingestMedia(
+    body: IngestMediaRequest,
+    options?: RequestOptions,
+  ): Promise<IngestMediaResult> {
+    const { media, ...rest } = body
+    const dataBase64 = typeof media === 'string' ? media : toBase64(media)
+    return this.http.post<IngestMediaResult>(
+      '/memory/media',
       { ...rest, dataBase64 },
       options,
     )
