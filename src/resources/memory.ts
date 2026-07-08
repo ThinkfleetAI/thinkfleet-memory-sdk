@@ -51,7 +51,7 @@ function toBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Memory — primary surface for memory.thinkfleet.ai.
+ * Memory — primary surface for app.memmesh.ai.
  *
  * Two sub-resources:
  *  - `tf.memory` (this class) — current-user memories at

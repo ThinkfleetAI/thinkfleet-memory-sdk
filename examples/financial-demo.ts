@@ -18,7 +18,7 @@
  * Usage:
  *   export THINKFLEET_API_KEY="sk-..."
  *   export THINKFLEET_PROJECT_ID="..."          # must have @thinkfleet/pack-financial enabled
- *   export THINKFLEET_BASE_URL="https://memory.thinkfleet.ai"   # optional
+ *   export THINKFLEET_BASE_URL="https://app.memmesh.ai"   # optional
  *   export DEMO_TICKERS="AAPL,MSFT,NVDA"        # optional
  *   npx tsx examples/financial-demo.ts
  *
@@ -34,7 +34,7 @@ import type { PriceInput, NewsInput } from '../src/index.js'
 const FETCH_ONLY = process.argv.includes('--fetch-only')
 const API_KEY = process.env.THINKFLEET_API_KEY
 const PROJECT_ID = process.env.THINKFLEET_PROJECT_ID
-const BASE_URL = process.env.THINKFLEET_BASE_URL ?? 'https://memory.thinkfleet.ai'
+const BASE_URL = process.env.THINKFLEET_BASE_URL ?? 'https://app.memmesh.ai'
 const TICKERS = (process.env.DEMO_TICKERS ?? 'AAPL,MSFT,NVDA')
   .split(',')
   .map((t) => t.trim().toUpperCase())
@@ -48,7 +48,7 @@ if (!FETCH_ONLY && (!API_KEY || !PROJECT_ID)) {
   console.error('Missing required environment variables:')
   console.error('  THINKFLEET_API_KEY=sk-...')
   console.error('  THINKFLEET_PROJECT_ID=...   (project must have @thinkfleet/pack-financial enabled)')
-  console.error('  THINKFLEET_BASE_URL=https://memory.thinkfleet.ai   (optional)')
+  console.error('  THINKFLEET_BASE_URL=https://app.memmesh.ai   (optional)')
   console.error('\nOr run the data-pull half only:  npx tsx examples/financial-demo.ts --fetch-only')
   process.exit(1)
 }

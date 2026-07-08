@@ -1,6 +1,6 @@
 # @thinkfleet/memory-sdk
 
-TypeScript SDK for [memory.thinkfleet.ai](https://memory.thinkfleet.ai) — a managed memory + behavioral-pattern engine for AI agents.
+TypeScript SDK for [app.memmesh.ai](https://app.memmesh.ai) — a managed memory + behavioral-pattern engine for AI agents.
 
 Two resources:
 - **`memory`** — admin + project memory CRUD, semantic search, promote/confirm/reject workflow, feedback
@@ -54,7 +54,7 @@ const hits = await tf.memory.admin.search({
 const tf = new ThinkFleetMemory({
   apiKey: 'sk-...',                              // Required
   projectId: 'proj_...',                         // Required default
-  baseUrl: 'https://memory.thinkfleet.ai',       // Default
+  baseUrl: 'https://app.memmesh.ai',       // Default
   maxRetries: 2,                                 // Retries 429/5xx with backoff
   timeout: 30_000,                               // ms
   fetch: globalThis.fetch,                       // BYO fetch

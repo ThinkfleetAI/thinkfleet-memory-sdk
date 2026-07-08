@@ -23,7 +23,7 @@ npx tsx examples/financial-demo.ts --fetch-only
 # Full end-to-end (needs a project with @thinkfleet/pack-financial enabled):
 export THINKFLEET_API_KEY="sk-..."
 export THINKFLEET_PROJECT_ID="..."
-export THINKFLEET_BASE_URL="https://memory.thinkfleet.ai"   # optional
+export THINKFLEET_BASE_URL="https://app.memmesh.ai"   # optional
 export DEMO_TICKERS="AAPL,MSFT,NVDA"                        # optional
 npm run demo:financial
 ```
@@ -70,7 +70,7 @@ npm install   # pulls @anthropic-ai/sdk + zod (dev deps for this example)
 export THINKFLEET_API_KEY="sk-..."
 export THINKFLEET_PROJECT_ID="..."
 export ANTHROPIC_API_KEY="sk-ant-..."
-export THINKFLEET_BASE_URL="https://memory.thinkfleet.ai"   # optional
+export THINKFLEET_BASE_URL="https://app.memmesh.ai"   # optional
 npm run demo:nbo
 ```
 

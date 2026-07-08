@@ -1,7 +1,7 @@
 /**
  * Lattice — behavioral pattern intelligence.
  *
- * Types mirror what the memory.thinkfleet.ai backend exposes at
+ * Types mirror what the app.memmesh.ai backend exposes at
  * `/api/v1/projects/{projectId}/lattice/*`. The server-side
  * implementation is TS today; cuts over to a Rust gRPC engine in a
  * follow-up.

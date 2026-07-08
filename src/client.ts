@@ -17,7 +17,7 @@ export interface ThinkFleetMemoryOptions {
   apiKey: string
   /** Default project ID for all requests. Can be overridden per-call via `{ projectId: ... }`. */
   projectId: string
-  /** Base URL of the memory.thinkfleet.ai API. Default: `https://memory.thinkfleet.ai`. */
+  /** Base URL of the app.memmesh.ai API. Default: `https://app.memmesh.ai`. */
   baseUrl?: string
   /** Retries 429 + 5xx with exponential backoff. Default 2. */
   maxRetries?: number
@@ -32,7 +32,7 @@ export interface ThinkFleetMemoryOptions {
 }
 
 /**
- * TypeScript client for memory.thinkfleet.ai.
+ * TypeScript client for app.memmesh.ai.
  *
  * Exposes two resources:
  *  - `memory`  — admin + project memory CRUD, semantic search, feedback
@@ -76,7 +76,7 @@ export class ThinkFleetMemory {
     const http = new HttpClient({
       apiKey: options.apiKey,
       projectId: options.projectId,
-      baseUrl: (options.baseUrl ?? 'https://memory.thinkfleet.ai').replace(/\/+$/, ''),
+      baseUrl: (options.baseUrl ?? 'https://app.memmesh.ai').replace(/\/+$/, ''),
       maxRetries: options.maxRetries ?? 2,
       timeout: options.timeout ?? 30000,
       fetchFn: options.fetch ?? globalThis.fetch.bind(globalThis),

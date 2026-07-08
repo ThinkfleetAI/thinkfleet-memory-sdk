@@ -20,7 +20,7 @@
  * Usage:
  *   export THINKFLEET_API_KEY="sk-..."
  *   export THINKFLEET_PROJECT_ID="..."
- *   export THINKFLEET_BASE_URL="https://memory.thinkfleet.ai"   # optional
+ *   export THINKFLEET_BASE_URL="https://app.memmesh.ai"   # optional
  *   export DEMO_SUBJECT="customer:acct-42"                      # optional, kind:externalId
  *   npx tsx examples/predict-anything.ts
  */
@@ -32,7 +32,7 @@ import type { PredictionTarget, TargetPrediction, Subject } from '../src/index.j
 
 const API_KEY = process.env.THINKFLEET_API_KEY
 const PROJECT_ID = process.env.THINKFLEET_PROJECT_ID
-const BASE_URL = process.env.THINKFLEET_BASE_URL ?? 'https://memory.thinkfleet.ai'
+const BASE_URL = process.env.THINKFLEET_BASE_URL ?? 'https://app.memmesh.ai'
 
 const [subjectKind, subjectId] = (process.env.DEMO_SUBJECT ?? 'customer:acct-42').split(':')
 const SUBJECT: Subject = { kind: subjectKind, externalId: subjectId }

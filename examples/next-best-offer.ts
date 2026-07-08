@@ -26,7 +26,7 @@
  * Usage:
  *   export THINKFLEET_API_KEY="sk-..."
  *   export THINKFLEET_PROJECT_ID="..."
- *   export THINKFLEET_BASE_URL="https://memory.thinkfleet.ai"   # optional
+ *   export THINKFLEET_BASE_URL="https://app.memmesh.ai"   # optional
  *   export ANTHROPIC_API_KEY="sk-ant-..."
  *   npx tsx examples/next-best-offer.ts
  *
