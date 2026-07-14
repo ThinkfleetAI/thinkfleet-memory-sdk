@@ -174,6 +174,17 @@ export interface CreateMemoryRequest {
   sessionKey?: string
   metadata?: Record<string, unknown>
   impact?: MemoryImpact
+  /**
+   * ISO-8601 timestamp of when this became true *in the world* — the event
+   * time. Distinct from `created`/`learnedAt`, which is when we ingested it.
+   * Defaults to now.
+   *
+   * This is the timestamp behavior mining reads, so **backfills must set it**.
+   * Leave it unset while importing history and every mined pattern will
+   * describe the moment you ran the import ("clusters around 17:00") rather
+   * than when the events actually happened.
+   */
+  validFrom?: string
 }
 
 export interface UpdateMemoryRequest {
@@ -199,7 +210,10 @@ export interface MemorySearchRequest {
   chatIdentityId?: string
   scope?: MemoryScope
   status?: MemoryStatus
+  /** Results per page. Default 10, max 50. */
   limit?: number
+  /** Skip this many results — page by bumping it. Default 0. */
+  offset?: number
 }
 
 export interface MemorySearchResult {
