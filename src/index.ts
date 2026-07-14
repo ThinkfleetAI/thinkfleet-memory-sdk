@@ -110,6 +110,19 @@ export type {
 } from './resources/learning.js'
 export { HealthResource } from './resources/health.js'
 export { FinancialResource } from './resources/financial.js'
+export { BrainsResource } from './resources/brains.js'
+
+// Types — brain marketplace
+export type {
+  Brain,
+  BrainCard,
+  BrainProvenance,
+  BrainVisibility,
+  BrainStatus,
+  CreateBrainRequest,
+  UpdateBrainRequest,
+  ListBrainsParams,
+} from './types/brain.js'
 
 // Types — financial
 export type {
