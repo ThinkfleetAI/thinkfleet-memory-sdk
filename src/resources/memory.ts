@@ -33,6 +33,12 @@ import {
 } from '../types/memory.js'
 
 /**
+ * Largest page `GET /admin/memory` will serve — the route rejects anything
+ * bigger. Keep in sync with `AdminListRoute` on the server.
+ */
+const MAX_PAGE_SIZE = 500
+
+/**
  * Encode a binary payload as base64. Works in Node (Buffer present)
  * and browsers (uses the WebStream-friendly btoa path).
  */
@@ -140,6 +146,13 @@ export class MemoryResource {
         importance: body.importance ?? 5,
         category: body.category,
         source: 'admin_created',
+        // Event time, not ingest time. `validFrom` is the column the mining
+        // engine reads to bucket day-of-week / time-of-day, so this mapping is
+        // what makes backfills work: without it every historical order lands at
+        // the wall-clock instant of the import and the patterns describe the
+        // import job. The metadata copy is kept for backwards compatibility
+        // with readers that already look for `metadata.occurredAt`.
+        validFrom: body.occurredAt,
         metadata: {
           subject: body.subject,
           ...(body.activityType ? { eventType: body.activityType } : {}),
@@ -332,14 +345,7 @@ export class MemoryResource {
     memoryId: string,
     options?: RequestOptions,
   ): Promise<{ memory: MemoryItem; sourceMemories: MemoryItem[] }> {
-    // Fetch the target pattern. There's no GET /admin/memory/:id route;
-    // pull a page wide enough to find it (with category=lattice this
-    // is fast — the project usually has tens of patterns, not thousands).
-    const all = await this.admin.list({ limit: 200 }, options)
-    const memory = all.find((m) => m.id === memoryId)
-    if (!memory) {
-      throw new Error(`memory ${memoryId} not found in this project`)
-    }
+    const memory = await this.admin.get(memoryId, options)
 
     // Pull source ids from metadata. Both camelCase and snake_case
     // are accepted because the Rust engine emits camelCase but
@@ -352,13 +358,14 @@ export class MemoryResource {
       return { memory, sourceMemories: [] }
     }
 
-    // Resolve each id by scanning the broader project memory list.
-    // For very large projects this won't scale; once the backend
-    // exposes a GET /admin/memory/:id route the SDK switches to
-    // parallel point-lookups.
-    const wide = await this.admin.list({ limit: 1000 }, options)
-    const idSet = new Set(ids)
-    const sourceMemories = wide.filter((m) => idSet.has(m.id))
+    // Point-lookup each source. This used to scan `list({ limit: 1000 })` and
+    // filter client-side — which silently missed any source outside the newest
+    // 1000 rows, and in fact 400'd outright since the route caps `limit` at 500.
+    // A source that has since been deleted or superseded is skipped rather than
+    // failing the whole explain.
+    const sourceMemories = (
+      await Promise.all(ids.map((id) => this.admin.get(id, options).catch(() => null)))
+    ).filter((m): m is MemoryItem => m !== null)
 
     return { memory, sourceMemories }
   }
@@ -384,7 +391,12 @@ export class AdminMemoryResource {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * List every memory in the project, filtered by scope/status/etc.
+   * List memories in the project, filtered by scope/status/etc.
+   *
+   * Returns one page — newest first. `limit` maxes out at 500 (default 50);
+   * page by bumping `offset`. A page shorter than `limit` means you've reached
+   * the end. To walk everything without hand-rolling that loop, use
+   * {@link listAll}.
    */
   async list(params?: ListMemoryParams, options?: RequestOptions): Promise<MemoryItem[]> {
     return this.http.get<MemoryItem[]>(
@@ -392,6 +404,41 @@ export class AdminMemoryResource {
       params as Record<string, string | number | boolean | undefined>,
       options,
     )
+  }
+
+  /**
+   * Fetch a single memory by id.
+   */
+  async get(memoryId: string, options?: RequestOptions): Promise<MemoryItem> {
+    return this.http.get<MemoryItem>(`/admin/memory/${memoryId}`, undefined, options)
+  }
+
+  /**
+   * Walk every memory matching `params`, transparently paging under the hood.
+   * Yields items one at a time so a large corpus never has to fit in memory.
+   *
+   * Note this pages by offset over a newest-first list, so writes landing
+   * mid-walk can shift rows across page boundaries. Fine for browsing and
+   * export; for an exact snapshot, filter by a fixed `asOf`.
+   *
+   * ```ts
+   * for await (const m of tf.memory.admin.listAll({ type: MemoryItemType.EVENT })) {
+   *   console.log(m.id, m.content)
+   * }
+   * ```
+   */
+  async *listAll(
+    params?: Omit<ListMemoryParams, 'offset'>,
+    options?: RequestOptions,
+  ): AsyncGenerator<MemoryItem, void, undefined> {
+    const limit = Math.min(params?.limit ?? MAX_PAGE_SIZE, MAX_PAGE_SIZE)
+    let offset = 0
+    for (;;) {
+      const page = await this.list({ ...params, limit, offset }, options)
+      for (const item of page) yield item
+      if (page.length < limit) return
+      offset += page.length
+    }
   }
 
   /**
