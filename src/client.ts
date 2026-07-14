@@ -2,6 +2,7 @@ import { HttpClient } from './core/http-client.js'
 import type { RequestInterceptor, ResponseInterceptor } from './core/types.js'
 import { AlertsResource } from './resources/alerts.js'
 import { BehaviorsResource } from './resources/behaviors.js'
+import { BrainsResource } from './resources/brains.js'
 import { ComplianceResource } from './resources/compliance.js'
 import { ContextResource } from './resources/context.js'
 import { EventsResource } from './resources/events.js'
@@ -64,6 +65,7 @@ export class ThinkFleetMemory {
   readonly health: HealthResource
   readonly financial: FinancialResource
   readonly typed: TypedAttributesResource
+  readonly brains: BrainsResource
 
   constructor(options: ThinkFleetMemoryOptions) {
     if (!options.apiKey) {
@@ -95,5 +97,6 @@ export class ThinkFleetMemory {
     this.health = new HealthResource(http)
     this.financial = new FinancialResource(http)
     this.typed = new TypedAttributesResource(http)
+    this.brains = new BrainsResource(http)
   }
 }

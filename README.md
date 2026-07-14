@@ -131,6 +131,35 @@ const tf = new ThinkFleetMemory({
 | `runMonitorTick()`                  | `POST /projects/:id/lattice/monitor/tick`             |
 | `getMonitorStatus()`                | `GET  /projects/:id/lattice/monitor/status`           |
 
+### `tf.brains` — marketplace registry
+
+Register, version, and manage the brains a project publishes (a brain = a Brain
+Card manifest + a stable `externalId` slug). Once a brain is `PUBLISHED` +
+`PUBLIC`, any caller consumes it over the hosted MCP endpoint
+(`/brains/:brainId/mcp-server/http`) — an MCP connection, not a REST call, so it
+lives outside this resource.
+
+| Method                     | Endpoint                                  |
+| -------------------------- | ----------------------------------------- |
+| `create(body)`             | `POST   /projects/:id/brains`             |
+| `list(params?)`            | `GET    /projects/:id/brains`             |
+| `get(brainId)`             | `GET    /projects/:id/brains/:brainId`    |
+| `update(brainId, body)`    | `PATCH  /projects/:id/brains/:brainId`    |
+| `delete(brainId)`          | `DELETE /projects/:id/brains/:brainId`    |
+
+```ts
+const brain = await tf.brains.create({
+  externalId: 'sec-edgar-financials',
+  name: 'SEC EDGAR Financials',
+  domain: 'finance',
+  card: { provenance: [{ source: 'SEC EDGAR', license: 'public-domain' }] },
+})
+await tf.brains.update(brain.id, { visibility: 'PUBLIC', status: 'PUBLISHED' })
+
+const page = await tf.brains.list({ limit: 20 })
+for (const b of page.data) console.log(b.externalId, b.status)
+```
+
 ---
 
 ## Predict anything (v2)
