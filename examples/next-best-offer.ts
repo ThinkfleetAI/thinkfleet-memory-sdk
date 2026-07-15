@@ -338,10 +338,13 @@ const CONTACTS: Contact[] = [
     // Regular-then-quiet → a win-back candidate.
     externalId: 'sarah-lapsing',
     activity: [
-      { activityType: 'order_placed', content: 'Order #1 — $42 pizza', occurredAt: daysAgo(90) },
-      { activityType: 'order_placed', content: 'Order #2 — $38 pizza', occurredAt: daysAgo(76) },
-      { activityType: 'order_placed', content: 'Order #3 — $45 pizza', occurredAt: daysAgo(62) },
-      { activityType: 'order_placed', content: 'Order #4 — $40 pizza', occurredAt: daysAgo(48) },
+      // The dollar amount goes in `metadata.amount` (a JSON number) — that is
+      // the field the RFM miner sums for the Monetary score. A price written
+      // only into `content` is not parsed, so it would leave M=0.
+      { activityType: 'order_placed', content: 'Order #1 — pizza', occurredAt: daysAgo(90), metadata: { amount: 42 } },
+      { activityType: 'order_placed', content: 'Order #2 — pizza', occurredAt: daysAgo(76), metadata: { amount: 38 } },
+      { activityType: 'order_placed', content: 'Order #3 — pizza', occurredAt: daysAgo(62), metadata: { amount: 45 } },
+      { activityType: 'order_placed', content: 'Order #4 — pizza', occurredAt: daysAgo(48), metadata: { amount: 40 } },
       { activityType: 'site_visit', content: 'Browsed menu, did not order', occurredAt: daysAgo(20) },
     ],
   },
@@ -349,9 +352,9 @@ const CONTACTS: Contact[] = [
     // Frequent + steady → reward, don't discount.
     externalId: 'mike-loyal',
     activity: [
-      { activityType: 'order_placed', content: 'Order — $30', occurredAt: daysAgo(21) },
-      { activityType: 'order_placed', content: 'Order — $34', occurredAt: daysAgo(14) },
-      { activityType: 'order_placed', content: 'Order — $28', occurredAt: daysAgo(7) },
+      { activityType: 'order_placed', content: 'Order', occurredAt: daysAgo(21), metadata: { amount: 30 } },
+      { activityType: 'order_placed', content: 'Order', occurredAt: daysAgo(14), metadata: { amount: 34 } },
+      { activityType: 'order_placed', content: 'Order', occurredAt: daysAgo(7), metadata: { amount: 28 } },
       { activityType: 'email_open', content: 'Opened weekly newsletter', occurredAt: daysAgo(2) },
     ],
   },
@@ -359,9 +362,9 @@ const CONTACTS: Contact[] = [
     // Predictable monthly cadence → replenishment timing play.
     externalId: 'ana-replenish',
     activity: [
-      { activityType: 'order_placed', content: 'Coffee beans 1kg — $24', occurredAt: daysAgo(88) },
-      { activityType: 'order_placed', content: 'Coffee beans 1kg — $24', occurredAt: daysAgo(58) },
-      { activityType: 'order_placed', content: 'Coffee beans 1kg — $24', occurredAt: daysAgo(29) },
+      { activityType: 'order_placed', content: 'Coffee beans 1kg', occurredAt: daysAgo(88), metadata: { amount: 24 } },
+      { activityType: 'order_placed', content: 'Coffee beans 1kg', occurredAt: daysAgo(58), metadata: { amount: 24 } },
+      { activityType: 'order_placed', content: 'Coffee beans 1kg', occurredAt: daysAgo(29), metadata: { amount: 24 } },
     ],
   },
 ]
