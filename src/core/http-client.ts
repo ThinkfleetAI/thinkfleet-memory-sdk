@@ -52,6 +52,19 @@ export class HttpClient {
     )
   }
 
+  async put<T>(path: string, body?: unknown, requestOptions?: RequestOptions): Promise<T> {
+    const url = this.buildUrl(path, undefined, requestOptions)
+    return this.request<T>(
+      url,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: body != null ? JSON.stringify(body) : undefined,
+      },
+      requestOptions,
+    )
+  }
+
   async delete<T>(path: string, requestOptions?: RequestOptions): Promise<T> {
     const url = this.buildUrl(path, undefined, requestOptions)
     return this.request<T>(url, { method: 'DELETE' }, requestOptions)
