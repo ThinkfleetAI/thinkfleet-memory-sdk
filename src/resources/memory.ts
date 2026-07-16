@@ -1,10 +1,14 @@
 import { ConsentResource } from './consent.js'
 import type { HttpClient } from '../core/http-client.js'
+import { renderProcedureContent } from '../core/procedural.js'
 import type { RequestOptions } from '../core/types.js'
 import {
   MemoryItemType,
   MemoryScope,
   type ConfirmMemoryRequest,
+  type CreateProcedureRequest,
+  type MemoryPrecedencePolicy,
+  type ReviewQueueItem,
   type CreateMemoryRequest,
   type ListMemoryParams,
   type MemoryFeedback,
@@ -456,14 +460,16 @@ export class AdminMemoryResource {
   }
 
   /**
-   * List memories pending review — either freshly extracted (status=pending)
-   * or auto-flagged by negative feedback (negativeRatingCount >= 3).
+   * List the adjudication queue — everything the system is unsure about. Each
+   * row carries a `reviewReason`: `pending` (awaiting confirmation), `flagged`
+   * (>= 3 negative), `low_confidence` (weak auto-extraction), or `stale`
+   * (old and long-unused).
    */
   async listPendingReview(
     params?: { limit?: number; offset?: number },
     options?: RequestOptions,
-  ): Promise<MemoryItem[]> {
-    return this.http.get<MemoryItem[]>(
+  ): Promise<ReviewQueueItem[]> {
+    return this.http.get<ReviewQueueItem[]>(
       '/admin/memory/review',
       params as Record<string, string | number | boolean | undefined>,
       options,
@@ -484,6 +490,59 @@ export class AdminMemoryResource {
    */
   async create(body: CreateMemoryRequest, options?: RequestOptions): Promise<MemoryItem> {
     return this.http.post<MemoryItem>('/admin/memory', body, options)
+  }
+
+  /**
+   * Author a procedure — "how this job is done here" (goal + steps + failure
+   * modes). Stored as a PROCEDURE memory: the structured shape goes on
+   * `metadata` and the rendered how-to text on `content`, so retrieval injects
+   * it as an explicit exemplar. A cheaper model reasons better on-domain when
+   * handed the procedure instead of a flattened fact.
+   */
+  async createProcedure(
+    body: CreateProcedureRequest,
+    options?: RequestOptions,
+  ): Promise<MemoryItem> {
+    const { category, scope, importance, ...metadata } = body
+    return this.create(
+      {
+        type: MemoryItemType.PROCEDURE,
+        content: renderProcedureContent(metadata),
+        category,
+        scope: scope ?? MemoryScope.PROJECT,
+        importance: importance ?? 7,
+        metadata: metadata as unknown as Record<string, unknown>,
+      },
+      options,
+    )
+  }
+
+  /**
+   * Get the project's memory precedence policy — which memory wins when two
+   * disagree. Falls back to the default ladder (human-verified > local >
+   * licensed-brain > base) when unset.
+   */
+  async getPrecedence(options?: RequestOptions): Promise<MemoryPrecedencePolicy> {
+    return this.http.get<MemoryPrecedencePolicy>(
+      '/admin/memory/precedence',
+      undefined,
+      options,
+    )
+  }
+
+  /**
+   * Save the project's memory precedence policy. Requires the Memory Steward
+   * role (MANAGE_MEMORY_POLICY).
+   */
+  async setPrecedence(
+    policy: MemoryPrecedencePolicy,
+    options?: RequestOptions,
+  ): Promise<MemoryPrecedencePolicy> {
+    return this.http.put<MemoryPrecedencePolicy>(
+      '/admin/memory/precedence',
+      policy,
+      options,
+    )
   }
 
   /**
