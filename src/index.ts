@@ -193,6 +193,12 @@ export type {
   ReflectResult,
   Insight,
   PrefetchRelatedRequest,
+  ReviewQueueItem,
+  ProcedureStep,
+  ProceduralMemoryMetadata,
+  CreateProcedureRequest,
+  MemoryPrecedenceOverride,
+  MemoryPrecedencePolicy,
 } from './types/memory.js'
 
 export {
@@ -201,7 +207,15 @@ export {
   MemoryStatus,
   MemoryImpact,
   MemoryFeedbackRating,
+  MemoryReviewReason,
+  MemoryProvenanceTier,
 } from './types/memory.js'
+
+// Procedural memory helpers
+export {
+  renderProcedureContent,
+  DEFAULT_PRECEDENCE_POLICY,
+} from './core/procedural.js'
 
 // Types — lattice
 export type {

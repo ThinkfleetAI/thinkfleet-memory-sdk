@@ -113,10 +113,13 @@ const tf = new ThinkFleetMemory({
 | `listPendingReview(params?)`                | `GET    /projects/:id/admin/memory/review`        |
 | `stats()`                                   | `GET    /projects/:id/admin/memory/stats`         |
 | `create(body)`                              | `POST   /projects/:id/admin/memory`               |
+| `createProcedure(body)`                     | `POST   /projects/:id/admin/memory` (type=procedure)|
 | `update(memId, body)`                       | `PATCH  /projects/:id/admin/memory/:memId`        |
 | `confirm(memId, body)`                      | `POST   /projects/:id/admin/memory/:memId/confirm`|
 | `promote(memId, body)`                      | `POST   /projects/:id/admin/memory/:memId/promote`|
 | `search(body)`                              | `POST   /projects/:id/admin/memory/search`        |
+| `getPrecedence()`                           | `GET    /projects/:id/admin/memory/precedence`    |
+| `setPrecedence(policy)`                     | `PUT    /projects/:id/admin/memory/precedence`    |
 | `delete(memId)`                             | `DELETE /projects/:id/admin/memory/:memId`        |
 | `listFeedback(memId)`                       | `GET    /projects/:id/admin/memory/:memId/feedback`|
 

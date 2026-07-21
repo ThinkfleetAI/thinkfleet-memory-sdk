@@ -9,6 +9,14 @@ export enum MemoryItemType {
   RULE = 'rule',
   CORRECTION = 'correction',
   SUMMARY = 'summary',
+  /**
+   * A reusable procedure — how a job/task is done here (goal + steps +
+   * failure modes). Injected as a how-to exemplar, not a fact, so a cheaper
+   * model reasons better on-domain. Structured shape on `metadata`
+   * (ProceduralMemoryMetadata); `content` holds the rendered, injectable text
+   * (see renderProcedureContent). Author with `admin.createProcedure()`.
+   */
+  PROCEDURE = 'procedure',
   /** Behavioral pattern emitted by Lattice mining. */
   BEHAVIOR_PATTERN = 'behavior_pattern',
   /** Subject-level consent / opt-out record. See ConsentResource. */
@@ -336,4 +344,83 @@ export interface PrefetchRelatedRequest {
   seedMemoryIds: string[]
   /** Max related memories to return. Default 10, clamped [1, 100]. */
   limit?: number
+}
+
+// ── Adjudication queue ───────────────────────────────────────────────
+
+/** Why a memory is in the review queue. The queue reports the highest-priority reason. */
+export enum MemoryReviewReason {
+  /** Awaiting first confirmation (status = pending). */
+  PENDING = 'pending',
+  /** Flagged by repeated negative feedback (>= 3). */
+  FLAGGED = 'flagged',
+  /** Auto-extracted, never human-confirmed, with low confidence. */
+  LOW_CONFIDENCE = 'low_confidence',
+  /** Old and long-unrecalled — a decay/forget candidate. */
+  STALE = 'stale',
+}
+
+/** A review-queue row: a memory plus why it needs a steward's attention. */
+export interface ReviewQueueItem extends MemoryItem {
+  reviewReason: MemoryReviewReason
+}
+
+// ── Procedural memory ────────────────────────────────────────────────
+
+/** One step in a procedure. `pitfall` is an optional inline warning. */
+export interface ProcedureStep {
+  text: string
+  pitfall?: string
+}
+
+/** Structured shape stored on a PROCEDURE memory's `metadata`. */
+export interface ProceduralMemoryMetadata {
+  /** What the procedure accomplishes. */
+  goal: string
+  /** When to reach for it — the trigger condition, in words. */
+  whenToUse?: string
+  /** Ordered steps. */
+  steps: ProcedureStep[]
+  /** Known failure modes / anti-patterns — what NOT to do and why. */
+  failureModes?: string[]
+}
+
+/** Input for `admin.createProcedure()`. */
+export interface CreateProcedureRequest extends ProceduralMemoryMetadata {
+  /** Optional category tag — used as the heading when injected. */
+  category?: string
+  /** Override the default PROJECT scope. */
+  scope?: MemoryScope
+  /** 0-10 importance, defaults to 7. */
+  importance?: number
+}
+
+// ── Memory precedence policy ─────────────────────────────────────────
+
+/** Origin tier of a memory, used to resolve conflicts. Default order strongest→weakest. */
+export enum MemoryProvenanceTier {
+  /** Confirmed by a human steward — most trusted. */
+  HUMAN_VERIFIED = 'human_verified',
+  /** Learned/extracted inside this organization. */
+  LOCAL = 'local',
+  /** Ingested from a purchased/licensed brain. */
+  LICENSED_BRAIN = 'licensed_brain',
+  /** Seed / base-model brain baseline. */
+  BASE = 'base',
+}
+
+/** Category-level override: "for this category, this tier wins." */
+export interface MemoryPrecedenceOverride {
+  category: string
+  winningTier: MemoryProvenanceTier
+}
+
+/** Which memory wins when two disagree. See `admin.getPrecedence()` / `setPrecedence()`. */
+export interface MemoryPrecedencePolicy {
+  /** Tier ranking, strongest first. Tiers omitted rank last. */
+  defaultOrder: MemoryProvenanceTier[]
+  /** When true, a nearer (more specific) scope breaks ties within a tier. */
+  scopeNearestWins: boolean
+  /** Category-level exceptions applied before the default order. */
+  overrides: MemoryPrecedenceOverride[]
 }
