@@ -2,6 +2,7 @@ import type { HttpClient } from '../core/http-client.js'
 import type { RequestOptions, SeekPage } from '../core/types.js'
 import type {
   Brain,
+  CreateBrainFromProjectOptions,
   CreateBrainRequest,
   ListBrainsParams,
   UpdateBrainRequest,
@@ -38,6 +39,47 @@ export class BrainsResource {
   /** Register a new brain in the project's catalog. */
   async create(body: CreateBrainRequest, options?: RequestOptions): Promise<Brain> {
     return this.http.post<Brain>('/brains', body, options)
+  }
+
+  /**
+   * Create a brain from the calling project's memory — the easy, high-level path.
+   *
+   * Where {@link create} wants a full {@link CreateBrainRequest}, this builds a
+   * sensible one for you from just a slug + name (plus optional domain / version
+   * / visibility) and an empty-but-valid Brain Card. Coverage (subjects, facts,
+   * and the induced reasoning layer) is computed server-side from the project's
+   * own memory, so you don't pass it. The brain is created as a DRAFT + PRIVATE;
+   * publishing and pricing are deliberate, separate steps.
+   *
+   * @example
+   * ```ts
+   * const brain = await tf.brains.createFromProject({
+   *   externalId: 'my-support-playbook',
+   *   name: 'Support Playbook',
+   *   domain: 'support',
+   * })
+   * // brain.status === 'DRAFT', brain.visibility === 'PRIVATE'
+   *
+   * // Publish it later, once you're ready:
+   * await tf.brains.update(brain.id, { visibility: 'PUBLIC', status: 'PUBLISHED' })
+   * ```
+   */
+  async createFromProject(
+    opts: CreateBrainFromProjectOptions,
+    options?: RequestOptions,
+  ): Promise<Brain> {
+    const body: CreateBrainRequest = {
+      externalId: opts.externalId,
+      name: opts.name,
+      domain: opts.domain,
+      version: opts.version ?? '1.0.0',
+      visibility: opts.visibility ?? 'PRIVATE',
+      // Empty-but-valid card: an empty provenance list and empty coverage. The
+      // server recomputes coverage from the project's memory; a real licensed
+      // provenance source is only required to publish PUBLIC (a separate step).
+      card: { provenance: [], coverage: {} },
+    }
+    return this.create(body, options)
   }
 
   /** List the project's brains (cursor-paginated). */

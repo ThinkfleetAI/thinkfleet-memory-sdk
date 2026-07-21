@@ -21,12 +21,29 @@ export interface BrainProvenance {
   url?: string
 }
 
+/**
+ * Coverage the induced reasoning layer advertises on a Brain Card — the
+ * procedure/checklist/decomposition memories that make a brain worth more than a
+ * plain dataset. A facts-only brain reports `total: 0`.
+ */
+export interface BrainReasoningCoverage {
+  procedures?: number
+  checklists?: number
+  decompositions?: number
+  total?: number
+}
+
 /** The Brain Card manifest (stored on the brain, surfaced in the catalog). */
 export interface BrainCard {
   ontologyRef?: string
   provenance?: BrainProvenance[]
   changelogRef?: string
-  coverage?: { subjects?: number; facts?: number; freshness?: string }
+  coverage?: {
+    subjects?: number
+    facts?: number
+    reasoning?: BrainReasoningCoverage
+    freshness?: string
+  }
   evaluation?: { benchmark?: string; score?: number }
   predictEnabled?: boolean
   pricing?: { model?: string; unit?: string }
@@ -70,4 +87,21 @@ export interface UpdateBrainRequest {
 export interface ListBrainsParams {
   limit?: number
   cursor?: string
+}
+
+/**
+ * High-level options for {@link BrainsResource.createFromProject} — the easy
+ * path to turning a project's memory into a brain. A minimal set of fields; the
+ * Brain Card (provenance/coverage) is filled in for you.
+ */
+export interface CreateBrainFromProjectOptions {
+  /** Stable slug the Router addresses the brain by (unique per project). */
+  externalId: string
+  name: string
+  /** Domain the brain covers, e.g. "finance". Required before publishing PUBLIC. */
+  domain?: string
+  /** Semantic version. Defaults to "1.0.0". */
+  version?: string
+  /** Defaults to "PRIVATE". A brain is only consumable once separately PUBLISHED. */
+  visibility?: BrainVisibility
 }
