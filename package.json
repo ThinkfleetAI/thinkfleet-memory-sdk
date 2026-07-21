@@ -1,6 +1,6 @@
 {
   "name": "@thinkfleet/memory-sdk",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "TypeScript SDK for app.memmesh.ai — admin + project memory CRUD, semantic search, feedback, and Lattice behavioral patterns",
   "type": "module",
   "main": "./dist/index.cjs",

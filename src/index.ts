@@ -116,10 +116,12 @@ export { BrainsResource } from './resources/brains.js'
 export type {
   Brain,
   BrainCard,
+  BrainReasoningCoverage,
   BrainProvenance,
   BrainVisibility,
   BrainStatus,
   CreateBrainRequest,
+  CreateBrainFromProjectOptions,
   UpdateBrainRequest,
   ListBrainsParams,
 } from './types/brain.js'
