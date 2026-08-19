@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * @thinkfleet/memory-sdk — Next Best Offer, end to end
+ * @memmesh/sdk — Next Best Offer, end to end
  *
  * A working sample app for the question: *"which offer is right for this
  * contact, and when is the right time to send it?"* — and, crucially, *how

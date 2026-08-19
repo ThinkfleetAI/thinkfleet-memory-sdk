@@ -42,9 +42,9 @@ export interface ThinkFleetMemoryOptions {
  *
  * @example
  * ```ts
- * import { ThinkFleetMemory } from '@thinkfleet/memory-sdk'
+ * import { MemMesh } from '@memmesh/sdk'
  *
- * const tf = new ThinkFleetMemory({
+ * const tf = new MemMesh({
  *   apiKey: 'sk-...',
  *   projectId: 'proj_...',
  * })

@@ -77,10 +77,39 @@ export interface MemoryItem extends BaseModel {
  * scope, importance, etc.
  */
 export interface ObserveRequest {
-  /** Subject this observation applies to. Required so mining works. */
-  subject: { kind: string; externalId: string }
-  /** Free-text content of the observation. */
-  content: string
+  /**
+   * Raw message text — the PRIMARY field. Send the whole turn, verbatim; the
+   * engine runs extraction (heuristic + optional LLM) and keeps only what's
+   * worth remembering, dropping filler. Prefer this over `content`.
+   */
+  text?: string
+  /** Who said `text` — defaults to "user". */
+  role?: 'user' | 'assistant' | 'system'
+  /**
+   * The end user this turn belongs to — your own identifier, not a MemMesh one.
+   * Recorded as provenance on whatever the engine keeps.
+   *
+   * NOT a tenancy boundary. `admin.search({ chatIdentityId })` filters
+   * permissively (`IS NULL OR = $1`), so project-wide memories stay visible to
+   * every caller. Isolating one end user's memories from another's needs a
+   * project per tenant.
+   */
+  userId?: string
+  /** The agent or assistant that produced this turn. Provenance only. */
+  agentId?: string
+  /** Conversation/thread id, so turns from one session stay linkable. */
+  sessionId?: string
+  /**
+   * Subject this observation applies to. Used with the legacy `content` path so
+   * mining can attribute the observation; not needed with `text` (the engine
+   * resolves subjects during extraction).
+   */
+  subject?: { kind: string; externalId: string }
+  /**
+   * DEPRECATED — a pre-decided fact stored verbatim, bypassing extraction.
+   * Prefer `text` and let the engine decide what to keep.
+   */
+  content?: string
   /** Event type identifier (`pizza_order`, `code_commit`, ...). Free-form. */
   activityType?: string
   /** ISO-8601 timestamp the activity occurred at. Defaults to now server-side. */
@@ -95,6 +124,16 @@ export interface ObserveRequest {
   category?: string
   /** Free-form metadata — merged into the underlying memory item. */
   metadata?: Record<string, unknown>
+}
+
+/**
+ * What `observe` returns: the memories the engine chose to keep (empty when the
+ * turn was filler) plus how many candidates it found before the dedupe/budget
+ * pass. `saved.length <= candidateCount`.
+ */
+export interface ObserveResponse {
+  saved: MemoryItem[]
+  candidateCount: number
 }
 
 /**

@@ -1,5 +1,8 @@
 // Client
 export { ThinkFleetMemory, type ThinkFleetMemoryOptions } from './client.js'
+// Brand-consistent alias (matches the Python SDK's `MemMesh` class).
+// `ThinkFleetMemory` is retained as a back-compat legacy alias.
+export { ThinkFleetMemory as MemMesh } from './client.js'
 
 // Core
 export {
@@ -23,6 +26,7 @@ export type {
 // Resources
 export { MemoryResource, AdminMemoryResource } from './resources/memory.js'
 export { ConsentResource } from './resources/consent.js'
+export { GraphResource } from './resources/graph.js'
 export { ContextResource } from './resources/context.js'
 export type {
   ContextSection,
@@ -248,3 +252,15 @@ export type {
   SubjectProfile,
   RiskIndicator,
 } from './types/lattice.js'
+
+// Knowledge graph
+export type {
+  MemoryEntity,
+  MemoryEntityType,
+  MemoryEdge,
+  GraphStats,
+  ListEntitiesParams,
+  ListEdgesParams,
+  TraverseParams,
+  EntityWithEdges,
+} from './types/graph.js'

@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * @thinkfleet/memory-sdk — integration smoke test
+ * @memmesh/sdk — integration smoke test
  *
  * Exercises every public SDK method against a live app.memmesh.ai
  * instance. Read-mostly, with one create+update+delete cycle so the
@@ -180,16 +180,27 @@ async function run(): Promise<void> {
   section('memory.observe() — ergonomic ingest')
 
   let observedId: string | null = null
-  await test('observe() creates a memory with subject metadata', async () => {
-    const m = await tf.memory.observe({
+  await test('observe() (legacy content) creates a memory with subject metadata', async () => {
+    const res = await tf.memory.observe({
       subject: { kind: 'workspace', externalId: `smoke-test-${stamp}` },
       content: `SDK_SMOKE_OBSERVE_${stamp} — observed activity from the smoke test`,
       activityType: 'smoke_test_event',
     })
-    if (!m.id) throw new Error(`observe returned no id: ${JSON.stringify(m)}`)
+    const m = res.saved[0]
+    if (!m?.id) throw new Error(`observe returned no saved item: ${JSON.stringify(res)}`)
     if (m.type !== 'event') throw new Error(`expected type=event, got ${m.type}`)
     observedId = m.id
     console.log(`      observed id=${m.id} type=${m.type}`)
+  })
+
+  await test('observe() (raw text) routes through the engine noise filter', async () => {
+    const res = await tf.memory.observe({
+      text: `SDK_SMOKE_TEXT_${stamp} — we standardized on pnpm across all repos.`,
+      role: 'user',
+    })
+    if (!Array.isArray(res.saved)) throw new Error(`expected { saved: [] }, got ${JSON.stringify(res)}`)
+    if (typeof res.candidateCount !== 'number') throw new Error('expected numeric candidateCount')
+    console.log(`      raw-text observe: saved=${res.saved.length} candidates=${res.candidateCount}`)
   })
 
   await test('observe() carries subject + activityType in metadata', async () => {

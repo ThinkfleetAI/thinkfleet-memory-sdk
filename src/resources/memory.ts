@@ -1,4 +1,5 @@
 import { ConsentResource } from './consent.js'
+import { GraphResource } from './graph.js'
 import type { HttpClient } from '../core/http-client.js'
 import { renderProcedureContent } from '../core/procedural.js'
 import type { RequestOptions } from '../core/types.js'
@@ -30,6 +31,7 @@ import {
   type ObserveAttachmentRequest,
   type ObserveDocumentRequest,
   type ObserveRequest,
+  type ObserveResponse,
   type ObserveVoiceRequest,
   type PromoteMemoryRequest,
   type SubmitFeedbackRequest,
@@ -141,31 +143,57 @@ export class MemoryResource {
   async observe(
     body: ObserveRequest,
     options?: RequestOptions,
-  ): Promise<MemoryItem> {
-    return this.admin.create(
-      {
-        content: body.content,
-        type: body.type ?? MemoryItemType.EVENT,
-        scope: body.scope ?? MemoryScope.PROJECT,
-        importance: body.importance ?? 5,
-        category: body.category,
-        source: 'admin_created',
-        // Event time, not ingest time. `validFrom` is the column the mining
-        // engine reads to bucket day-of-week / time-of-day, so this mapping is
-        // what makes backfills work: without it every historical order lands at
-        // the wall-clock instant of the import and the patterns describe the
-        // import job. The metadata copy is kept for backwards compatibility
-        // with readers that already look for `metadata.occurredAt`.
-        validFrom: body.occurredAt,
-        metadata: {
-          subject: body.subject,
-          ...(body.activityType ? { eventType: body.activityType } : {}),
+  ): Promise<ObserveResponse> {
+    // PRIMARY path: hand the engine the raw turn and let it decide what to keep.
+    // POST /memory/observe runs the Observe pipeline (extract → dedupe → budget)
+    // and returns { saved, candidateCount }; filler comes back with saved: [].
+    if (body.text != null && body.text.trim().length > 0) {
+      return this.http.post<ObserveResponse>(
+        '/memory/observe',
+        {
+          text: body.text,
+          role: body.role ?? 'user',
+          // Provenance, all optional server-side. Omitted rather than sent as
+          // null so a turn without them is indistinguishable from one made by
+          // an older client.
+          ...(body.userId ? { userId: body.userId } : {}),
+          ...(body.agentId ? { agentId: body.agentId } : {}),
+          ...(body.sessionId ? { sessionId: body.sessionId } : {}),
           ...(body.occurredAt ? { occurredAt: body.occurredAt } : {}),
-          ...(body.metadata ?? {}),
         },
-      },
-      options,
-    )
+        options,
+      )
+    }
+    // LEGACY path: caller handed a pre-decided fact. Store it verbatim (no
+    // extraction) and wrap the single item so the return shape stays consistent.
+    if (body.content != null && body.content.trim().length > 0) {
+      const item = await this.admin.create(
+        {
+          content: body.content,
+          type: body.type ?? MemoryItemType.EVENT,
+          scope: body.scope ?? MemoryScope.PROJECT,
+          importance: body.importance ?? 5,
+          category: body.category,
+          source: 'admin_created',
+          // Event time, not ingest time. `validFrom` is the column the mining
+          // engine reads to bucket day-of-week / time-of-day, so this mapping is
+          // what makes backfills work: without it every historical order lands at
+          // the wall-clock instant of the import and the patterns describe the
+          // import job. The metadata copy is kept for backwards compatibility
+          // with readers that already look for `metadata.occurredAt`.
+          validFrom: body.occurredAt,
+          metadata: {
+            subject: body.subject,
+            ...(body.activityType ? { eventType: body.activityType } : {}),
+            ...(body.occurredAt ? { occurredAt: body.occurredAt } : {}),
+            ...(body.metadata ?? {}),
+          },
+        },
+        options,
+      )
+      return { saved: [item], candidateCount: 1 }
+    }
+    throw new Error('observe requires `text` (preferred) or `content`')
   }
 
   /**
@@ -392,7 +420,12 @@ export class MemoryResource {
  * non-admin keys get a 403.
  */
 export class AdminMemoryResource {
-  constructor(private readonly http: HttpClient) {}
+  /** The knowledge graph extraction builds from observed memory. */
+  readonly graph: GraphResource
+
+  constructor(private readonly http: HttpClient) {
+    this.graph = new GraphResource(http)
+  }
 
   /**
    * List memories in the project, filtered by scope/status/etc.
