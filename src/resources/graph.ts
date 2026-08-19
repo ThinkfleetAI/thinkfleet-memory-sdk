@@ -5,7 +5,7 @@ import type {
   GraphStats,
   ListEdgesParams,
   ListEntitiesParams,
-  MemoryEdge,
+  GraphTraversalEdge,
   MemoryEntity,
   TraverseParams,
 } from '../types/graph.js'
@@ -65,8 +65,8 @@ export class GraphResource {
    * Every currently-valid edge. Use for rendering a whole small graph; for a
    * large one, seed from an entity and `traverse` instead.
    */
-  async listEdges(params?: ListEdgesParams, options?: RequestOptions): Promise<MemoryEdge[]> {
-    return this.http.get<MemoryEdge[]>(
+  async listEdges(params?: ListEdgesParams, options?: RequestOptions): Promise<GraphTraversalEdge[]> {
+    return this.http.get<GraphTraversalEdge[]>(
       '/admin/memory/graph/edges',
       params as Record<string, string | number | undefined>,
       options,
@@ -84,8 +84,8 @@ export class GraphResource {
     entityId: string,
     params?: TraverseParams,
     options?: RequestOptions,
-  ): Promise<MemoryEdge[]> {
-    return this.http.post<MemoryEdge[]>(
+  ): Promise<GraphTraversalEdge[]> {
+    return this.http.post<GraphTraversalEdge[]>(
       '/admin/memory/graph/traverse',
       { entityId, ...params },
       options,
