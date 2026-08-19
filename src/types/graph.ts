@@ -6,12 +6,10 @@
  * reach a fact no single memory states outright ("who does Sarah report to?"
  * answered from `sarah -[member_of]-> team` + `team -[led_by]-> priya`).
  *
- * Both records are bi-temporal, and the two time axes mean different things:
- *   - `validFrom` / `validTo` — when the fact was TRUE in the world.
- *   - `expiredAt` (edges)     — when the graph stopped BELIEVING it, because a
- *                               contradicting edge superseded it.
- * A fact that was true last year and a fact we were wrong about are not the
- * same thing, and collapsing them loses the audit trail.
+ * Entities and edges are bi-temporal: `validFrom` / `validTo` say when the fact
+ * was TRUE in the world, which is not the same as when we believed it. The read
+ * routes return only currently-believed edges, so a row superseded by a
+ * contradicting one simply stops appearing rather than coming back flagged.
  */
 import type { MemoryScope } from './memory.js'
 
@@ -26,8 +24,8 @@ export interface MemoryEntity {
   projectId: string | null
   /**
    * The brain that first created this entity. Entities dedupe per project, so
-   * this is provenance, NOT an isolation key — use `MemoryEdge.brainId` for
-   * brain-scoped graph work.
+   * this is provenance, NOT an isolation key — brain-scoped graph work filters
+   * on the edge's `brainId`, which the read routes do server-side.
    */
   brainId: string | null
   locationId: string | null
@@ -46,36 +44,39 @@ export interface MemoryEntity {
   supersededById: string | null
 }
 
-export interface MemoryEdge {
+/**
+ * An edge as the READ routes return it — hydrated, not the raw `memory_edge`
+ * row. `subject` and `object` are resolved entities rather than ids, and `hop`
+ * says how far from the seed the walk found it.
+ *
+ * This is the server's `GraphTraversalEdge`, returned by `listEdges`,
+ * `traverse`, and the `edges` of `getEntity`. The raw row shape (with
+ * `subjectId` / `objectId` / `brainId`) is not exposed by any read route, so it
+ * is deliberately not modelled here — a type nothing returns is a trap.
+ */
+export interface GraphTraversalEdge {
+  /** Edge primary key — needed for invalidation. */
   id: string
-  created: string
-  updated: string
-  platformId: string
-  projectId: string | null
-  /** Per-brain KG isolation — edges are written fresh per brain, so this one
-   *  IS the enforceable key for brain-scoped walks. Null on legacy edges. */
-  brainId: string | null
-  locationId: string | null
-  chatbotId: string | null
-  chatIdentityId: string | null
-  scope: MemoryScope
-  /** Entity id this edge starts from. */
-  subjectId: string
+  /** The entity this edge starts from, hydrated. */
+  subject: MemoryEntity
   /** The relationship — `works_at`, `owns`, `located_in`, ... */
   predicate: string
-  /** Entity id, when the object is itself an entity. */
-  objectId: string | null
+  /** The target entity, hydrated. `null` when `objectLiteral` carries the value. */
+  object: MemoryEntity | null
   /** Literal value, when the object is not an entity (a date, a price, "v1.2.3"). */
   objectLiteral: string | null
   /** Confidence, 0..1. */
   weight: number
+  validFrom: string
+  /** Null while the edge is still valid. */
+  validTo: string | null
   /** The memory this edge was extracted from. */
   sourceMemoryId: string | null
-  metadata: Record<string, unknown> | null
-  validFrom: string
-  validTo: string | null
-  /** Set when a contradicting edge superseded this one. Null = still believed. */
-  expiredAt?: string | null
+  /**
+   * Distance from the seed entity on a `traverse` — 1 for a direct neighbour.
+   * `listEdges` has no seed, so every edge comes back with `hop: 0`.
+   */
+  hop: number
 }
 
 export interface ListEntitiesParams {
@@ -126,5 +127,5 @@ export interface GraphStats {
 /** An entity plus its 1-hop neighbourhood. */
 export interface EntityWithEdges {
   entity: MemoryEntity | null
-  edges: MemoryEdge[]
+  edges: GraphTraversalEdge[]
 }
