@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * @thinkfleet/memory-sdk — v2 "predict anything" + abstention demo
+ * @memmesh/sdk — v2 "predict anything" + abstention demo
  *
  * The whole moat in one file: declare ANY target and the engine predicts it
  * from a subject's observation history — calibrated, with provenance, and

@@ -1,4 +1,4 @@
-# @thinkfleet/memory-sdk
+# @memmesh/sdk
 
 TypeScript SDK for [app.memmesh.ai](https://app.memmesh.ai) — a managed memory + behavioral-pattern engine for AI agents.
 
@@ -13,17 +13,18 @@ Runs anywhere with a modern `fetch`: Node 18+, Bun, Deno, browsers, Cloudflare W
 ## Install
 
 ```bash
-npm install @thinkfleet/memory-sdk
-# or: pnpm add @thinkfleet/memory-sdk
-# or: bun add @thinkfleet/memory-sdk
+npm install @memmesh/sdk
+# or: pnpm add @memmesh/sdk
+# or: bun add @memmesh/sdk
 ```
 
 ## Quick start
 
 ```ts
-import { ThinkFleetMemory } from '@thinkfleet/memory-sdk'
+import { MemMesh } from '@memmesh/sdk'
+// `ThinkFleetMemory` is the legacy alias — still exported for back-compat.
 
-const tf = new ThinkFleetMemory({
+const tf = new MemMesh({
   apiKey: 'sk-...',           // Platform Admin → API Keys
   projectId: 'proj_...',      // Default project for all calls
 })
@@ -51,7 +52,7 @@ const hits = await tf.memory.admin.search({
 ## Configuration
 
 ```ts
-const tf = new ThinkFleetMemory({
+const tf = new MemMesh({
   apiKey: 'sk-...',                              // Required
   projectId: 'proj_...',                         // Required default
   baseUrl: 'https://app.memmesh.ai',       // Default
@@ -74,7 +75,7 @@ await tf.memory.admin.list({ scope: 'project' }, { projectId: 'proj_other' })
 Pass a request interceptor that swaps the `Authorization` header on each call:
 
 ```ts
-const tf = new ThinkFleetMemory({
+const tf = new MemMesh({
   apiKey: 'unused',  // still required to be non-empty, but interceptor wins
   projectId: 'proj_...',
   requestInterceptors: [
@@ -100,9 +101,32 @@ const tf = new ThinkFleetMemory({
 
 | Method                    | Endpoint                              |
 | ------------------------- | ------------------------------------- |
+| `observe(body)`           | `POST   /projects/:id/memory/observe` |
 | `mine(params?)`           | `GET    /projects/:id/memory/mine`    |
 | `delete(memoryId)`        | `DELETE /projects/:id/memory/:memId`  |
 | `submitFeedback(body)`    | `POST   /projects/:id/memory/feedback`|
+
+`observe()` is the primary write path. Hand it the raw turn, **verbatim** — the
+engine runs extraction, dedupe, graph wiring, and embedding, and keeps only what
+is worth remembering. Do not summarize or pre-filter first: extraction is the
+thing you are paying for, and a pre-digested input makes it worse, not cheaper.
+
+```ts
+const { saved, candidateCount } = await tf.memory.observe({
+  text: "I just moved to Denver and I'm still vegetarian.",
+  role: 'user',
+  userId: 'user-123',      // your identifier, recorded as provenance
+  sessionId: 'thread-456', // keeps a conversation's turns linkable
+})
+```
+
+`candidateCount` is what extraction proposed; `saved` is what survived dedupe and
+the token budget. Filler comes back as `saved: []` — that is the system working.
+
+`userId` is provenance, **not** a tenancy boundary: `admin.search({ chatIdentityId })`
+filters permissively (`IS NULL OR = $1`) so project-wide memories stay visible to
+every caller. Isolating one end user's memories from another's needs a project
+per tenant.
 
 ### `tf.memory.admin` — admin / project-wide memory
 
@@ -122,6 +146,38 @@ const tf = new ThinkFleetMemory({
 | `setPrecedence(policy)`                     | `PUT    /projects/:id/admin/memory/precedence`    |
 | `delete(memId)`                             | `DELETE /projects/:id/admin/memory/:memId`        |
 | `listFeedback(memId)`                       | `GET    /projects/:id/admin/memory/:memId/feedback`|
+
+### `tf.memory.admin.graph` — the knowledge graph
+
+Observing text doesn't only produce embeddable rows; extraction also resolves
+entities and writes typed edges between them. That graph is what answers a
+question no single memory states outright.
+
+| Method                          | Endpoint                                            |
+| ------------------------------- | --------------------------------------------------- |
+| `stats()`                       | `GET  /projects/:id/admin/memory/graph/stats`        |
+| `listEntities(params?)`         | `GET  /projects/:id/admin/memory/entities`           |
+| `getEntity(entityId, params?)`  | `GET  /projects/:id/admin/memory/entities/:entityId` |
+| `listEdges(params?)`            | `GET  /projects/:id/admin/memory/graph/edges`        |
+| `traverse(entityId, params?)`   | `POST /projects/:id/admin/memory/graph/traverse`     |
+
+```ts
+// How much of what you remember made it into the graph?
+const { entityCount, edgeCount, memoriesWithEdges } = await tf.memory.admin.graph.stats()
+
+// Multi-hop: who does Sarah ultimately report to?
+const [sarah] = await tf.memory.admin.graph.listEntities({ search: 'Sarah', limit: 1 })
+const chain = await tf.memory.admin.graph.traverse(sarah.id, {
+  hops: 2,
+  predicates: ['member_of', 'led_by'],
+})
+```
+
+Use `stats()` — not `listEntities().length` — for any "how big is it" question:
+the list routes page, so their length is the page size, not the total.
+
+Read-only by design. Entities and edges are written by extraction when you
+`observe()`; a hand-maintained graph is the work the engine exists to do for you.
 
 ### `tf.lattice` — behavioral patterns
 
@@ -206,7 +262,7 @@ returns the full `PredictResult` (`targetPrediction` + top-level `abstained`).
 ## Memory scopes
 
 ```ts
-import { MemoryScope } from '@thinkfleet/memory-sdk'
+import { MemoryScope } from '@memmesh/sdk'
 
 MemoryScope.PLATFORM   // visible to every project on the platform
 MemoryScope.PROJECT    // visible to every user in this project
@@ -229,7 +285,7 @@ import {
   RateLimitError,
   ServerError,
   TimeoutError,
-} from '@thinkfleet/memory-sdk'
+} from '@memmesh/sdk'
 
 try {
   await tf.memory.admin.create({ content: '' })

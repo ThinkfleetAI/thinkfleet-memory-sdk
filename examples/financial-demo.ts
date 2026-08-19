@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * @thinkfleet/memory-sdk — financial vertical end-to-end demo
+ * @memmesh/sdk — financial vertical end-to-end demo
  *
  * A working sample app that pulls REAL data from public, no-API-key sources,
  * loads it into ThinkFleet memory, and reads the financial vertical back out:
