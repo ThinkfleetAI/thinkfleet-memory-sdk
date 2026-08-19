@@ -257,7 +257,7 @@ export type {
 export type {
   MemoryEntity,
   MemoryEntityType,
-  MemoryEdge,
+  GraphTraversalEdge,
   GraphStats,
   ListEntitiesParams,
   ListEdgesParams,
