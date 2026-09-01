@@ -264,3 +264,22 @@ export type {
   TraverseParams,
   EntityWithEdges,
 } from './types/graph.js'
+
+// Integrations — the layer that makes memory automatic rather than something
+// each caller has to remember to call. See src/integrations/.
+export {
+  withMemory,
+  withOpenAI,
+  withAnthropic,
+  memoryMiddleware,
+  MemoryMiddleware,
+  normalizeMessages,
+  lastHumanTurn,
+  type MemoryMiddlewareOptions,
+} from './integrations/index.js'
+
+export type {
+  ConversationTurn,
+  ConversationContextRequest,
+  ConversationContextBundle,
+} from './resources/context.js'

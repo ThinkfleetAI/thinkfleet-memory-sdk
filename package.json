@@ -1,7 +1,7 @@
 {
   "name": "@memmesh/sdk",
-  "version": "0.9.0",
-  "description": "TypeScript SDK for app.memmesh.ai — admin + project memory CRUD, semantic search, feedback, and Lattice behavioral patterns",
+  "version": "0.10.0",
+  "description": "TypeScript SDK for app.memmesh.ai \u2014 admin + project memory CRUD, semantic search, feedback, and Lattice behavioral patterns",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -32,7 +32,8 @@
     "seed": "tsx scripts/seed-memory.ts",
     "seed:lattice": "tsx scripts/seed-lattice.ts",
     "demo:financial": "tsx examples/financial-demo.ts",
-    "demo:nbo": "tsx examples/next-best-offer.ts"
+    "demo:nbo": "tsx examples/next-best-offer.ts",
+    "test:integrations": "tsx test/integrations.test.ts"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.109.1",

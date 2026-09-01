@@ -221,6 +221,98 @@ for (const b of page.data) console.log(b.externalId, b.status)
 
 ---
 
+## Automatic memory (integrations)
+
+Everything under `Resources` is the API. This section is the part that makes
+memory *automatic* — capture and injection on every turn, without the model
+having to decide to call a tool and without you writing the glue.
+
+### Three lines
+
+```ts
+import OpenAI from 'openai'
+import { withMemory } from '@memmesh/sdk'
+
+// `mm` is the MemMesh client from Quick start above.
+const openai = withMemory(new OpenAI(), mm, {
+  subject: { kind: 'user', externalId: currentUser.id },
+  sessionId: conversationId,
+})
+```
+
+Every existing `openai.chat.completions.create(...)` call site is unchanged and
+now: retrieves relevant memory, injects it within a token budget, runs, and
+writes the turn back. `withMemory` also accepts an Anthropic client.
+
+### What it does per turn
+
+1. **Retrieve** — `context.forConversation()` derives the query from the recent
+   turns (plus `intent` if you pass one), ranks, and fits the result to
+   `tokenBudget` (default 1200).
+2. **Inject** — as a system message placed *after* your own system prompt.
+   Your system prompt is your product; memory is context, not policy.
+3. **Capture** — the user turn and the assistant reply go back via `observe()`,
+   so the store holds what was asked *and* what they were told.
+
+### It cannot break your app
+
+Every memory call is wrapped. An outage, timeout, 5xx or malformed response
+degrades that turn to "no context" and the model runs exactly as it would have
+without any of this. Failures surface through `onError`, never as a thrown
+exception on your request path.
+
+```ts
+withMemory(client, mm, {
+  onError: (err, phase) => logger.warn({ err, phase }, 'memmesh degraded'),
+})
+```
+
+### Vercel AI SDK
+
+```ts
+import { wrapLanguageModel } from 'ai'
+import { memoryMiddleware } from '@memmesh/sdk'
+
+const model = wrapLanguageModel({
+  model: openai('gpt-4o'),
+  middleware: memoryMiddleware(mm, { subject }),
+})
+```
+
+`transformParams` is an injection point, not a completion point, so this
+captures the **user** half of each turn. To capture the assistant half, call
+`mw.capture()` from your own `onFinish`.
+
+### Streaming
+
+Injection works normally. The assistant half is **not** captured, because the
+text does not exist when the call returns and consuming the stream to get it
+would break yours. Capture it yourself once the stream completes:
+
+```ts
+const mw = new MemoryMiddleware(mm, { subject })
+const messages = await mw.withContext(yourMessages)
+const stream = await openai.chat.completions.create({ messages, stream: true })
+// ...after you have the full text:
+await mw.capture(yourMessages, fullText)
+```
+
+### Anything else
+
+`MemoryMiddleware` is the provider-agnostic core — `withContext(messages)`,
+`capture(messages, replyText)`, `context(messages, intent)`. Use it directly
+for any client the adapters do not cover.
+
+### Options worth knowing
+
+| Option | Default | Why you would change it |
+| --- | --- | --- |
+| `subject` | inferred server-side | Pass it. Without it the server guesses from the turn, which is usually right and is still a guess. A declared subject makes the memory reachable by prediction and profiling. |
+| `tokenBudget` | `1200` | Raise it if bundles report `droppedForBudget > 0`. |
+| `awaitCapture` | `true` | Set `false` only if your runtime survives a floating promise. A serverless function that freezes on response return will silently drop every write. |
+| `excludeCategories` | none | Withhold categories (medical, HR) from a surface that has no business seeing them. |
+| `brainId` | none | Required when the conversation consumes a published brain. |
+
 ## Predict anything (v2)
 
 Don't pick a model. Declare *what* to predict — a churn event, a next-order

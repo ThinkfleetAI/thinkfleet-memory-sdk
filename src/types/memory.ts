@@ -100,9 +100,19 @@ export interface ObserveRequest {
   /** Conversation/thread id, so turns from one session stay linkable. */
   sessionId?: string
   /**
-   * Subject this observation applies to. Used with the legacy `content` path so
-   * mining can attribute the observation; not needed with `text` (the engine
-   * resolves subjects during extraction).
+   * WHO this observation is ABOUT — distinct from `userId`, who was SPEAKING.
+   *
+   * SEND IT. The claim that this is "not needed with `text`" was wrong: the
+   * engine did not resolve subjects during extraction, and a memory written
+   * without one is searchable but behaviourally invisible — predict, profile,
+   * cohort and behaviour discovery all resolve a subject before they can use
+   * a row. That is how a real deployment reaches 182k memories against 98
+   * subjects with nothing reporting a problem.
+   *
+   * The server now INFERS a subject when you omit it (from a speaker tag in
+   * the text, first-person phrasing, or `userId`) and records how it decided.
+   * That is a good safety net and a poor substitute for the caller, which
+   * usually knows the answer exactly.
    */
   subject?: { kind: string; externalId: string }
   /**
