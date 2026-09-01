@@ -1,6 +1,60 @@
 import type { HttpClient } from '../core/http-client.js'
 import type { RequestOptions } from '../core/types.js'
 
+/** A conversation turn, in the shape every chat SDK already uses. */
+export interface ConversationTurn {
+  role?: string
+  content: string
+}
+
+export interface ConversationContextRequest {
+  /**
+   * The conversation. Prefer TURNS over a joined string: subject attribution
+   * reads the last human turn, and concatenation destroys the boundary that
+   * makes that possible.
+   */
+  turns?: ConversationTurn[]
+  /** Alternative to `turns` when all you have is text. */
+  conversation?: string
+  /**
+   * What you are about to do ("draft the renewal reply"). Weighted AHEAD of
+   * the conversation, because it describes the turn the context is for.
+   */
+  intent?: string
+  /** Hard cap on the assembled block. Default 1200. */
+  tokenBudget?: number
+  /** Candidate pool before budgeting. Default 25. */
+  limit?: number
+  /** Min-necessary access — withhold these categories from this query. */
+  excludeCategories?: string[]
+  /** Brain isolation. Required when consuming a published brain. */
+  brainId?: string
+}
+
+export interface ConversationContextBundle {
+  /** Ready to inject into a system prompt. Null when nothing applies. */
+  context: string | null
+  /** Who we decided this is about, and how the decision was made. */
+  subject: {
+    kind: string
+    externalId: string
+    origin: 'explicit' | 'speaker-first-person' | 'speaker' | 'user'
+    confidence: number
+  } | null
+  /** Every row that reached the block. Pass any to `memory.explain()`. */
+  memoryIds: string[]
+  tokensEstimate: number
+  tokenBudget: number
+  /**
+   * Retrieved candidates the budget could not fit. Non-zero means "raise
+   * tokenBudget", NOT "we know nothing" — the two are otherwise
+   * indistinguishable from an empty-looking block.
+   */
+  droppedForBudget: number
+  /** The query retrieval actually ran on. For debugging a bad bundle. */
+  query: string
+}
+
 export type ContextSection =
   | 'profile'
   | 'patterns'
@@ -168,6 +222,31 @@ export interface BatchContextBuildRequest {
 
 export class ContextResource {
   constructor(private readonly http: HttpClient) {}
+
+  /**
+   * Assemble injectable context FOR A CONVERSATION — no subject id required.
+   *
+   * The subject-keyed `build()` answers "what do we know about this subject", which needs
+   * you to know who the subject IS. This answers "what should the model know
+   * before it replies to this", which is the question a host application
+   * actually has, once per turn, with a conversation in hand and no id.
+   *
+   * @example
+   * ```ts
+   * const { context } = await mm.context.forConversation({
+   *   turns: messages,
+   *   intent: 'answer the billing question',
+   *   tokenBudget: 800,
+   * })
+   * if (context) messages.unshift({ role: 'system', content: context })
+   * ```
+   */
+  async forConversation(
+    body: ConversationContextRequest,
+    options?: RequestOptions,
+  ): Promise<ConversationContextBundle> {
+    return this.http.post<ConversationContextBundle>('/memory/context', body, options)
+  }
 
   async build(
     body: ContextBuildRequest,

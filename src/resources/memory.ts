@@ -342,7 +342,13 @@ export class MemoryResource {
   }
 
   /**
-   * Delete one of your own memory items.
+   * Delete a memory item in this project.
+   *
+   * PROJECT-SCOPED, not owner-scoped — this was previously documented as
+   * "one of your own memory items", which it has never been. Your API key can
+   * delete any memory in the project it is scoped to. That is the intended
+   * behaviour for a backend managing its own data; it is the wrong thing to
+   * put behind an end user's "forget this about me" button.
    */
   async delete(memoryId: string, options?: RequestOptions): Promise<void> {
     return this.http.delete(`/memory/${memoryId}`, options)
@@ -696,6 +702,37 @@ export class AdminMemoryResource {
    * keep the strongest, supersede the rest. Distinct from consolidate(), which
    * is the LLM-driven deductive-observations pass.
    */
+  /**
+   * Collapse clusters of near-duplicate memories into ONE lossless survivor.
+   *
+   * Unlike `dedup()`, which keeps the newer of a pair and supersedes the
+   * older — losing any detail only the older one carried — this writes a NEW
+   * memory covering the union and supersedes the cluster onto it. Originals
+   * stay verbatim behind it.
+   *
+   * DEFAULTS TO A DRY RUN. Call it that way first: it reports how much of the
+   * corpus is near-duplicate, and in what cluster sizes, without invoking a
+   * model or writing anything. A real run also needs merge writes enabled
+   * server-side, and returns an abstention count — read that before trusting
+   * the merges.
+   */
+  async merge(
+    body?: {
+      dryRun?: boolean
+      threshold?: number
+      maxClusters?: number
+      maxClusterSize?: number
+    },
+    options?: RequestOptions,
+  ): Promise<{
+    clustersFound: number
+    clustersMerged: number
+    clustersAbstained: number
+    memoriesSuperseded: number
+  }> {
+    return this.http.post('/admin/memory/merge', body ?? {}, options)
+  }
+
   async dedup(
     body: DedupRequest = {},
     options?: RequestOptions,
