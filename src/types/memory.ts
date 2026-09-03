@@ -308,6 +308,17 @@ export interface ListMemoryParams {
   source?: string
   chatbotId?: string
   chatIdentityId?: string
+  /**
+   * Restrict to memories belonging to one brain.
+   *
+   * Unlike the knowledge graph — which is still workspace-wide because entities
+   * dedupe across brains — this IS a real server-side filter.
+   */
+  brainId?: string
+  /** Only memories carrying a KG edge whose subject is this entity. */
+  subjectId?: string
+  /** Only memories carrying a KG edge with this predicate. */
+  predicate?: string
   limit?: number
   offset?: number
 }
